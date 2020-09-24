@@ -7,28 +7,27 @@ from copy import deepcopy
 
 # Define a default response function
 def linear_output_response(pv, out, slope = 0.01):
-    return pv + slope * (out - 50)
+    return pv + slope * (out - 50) + np.random.normal(0, 0.05)
 
 # Class RL Controller
 class rl_controller():
 
     # Initialize Simulation
-    def __init__(self, pv0=0, sps=np.ones(2000), pvf=linear_output_response, nf=0.01, ql=500):
+    def __init__(self, pv0=0, sps=np.ones(2000), pvf=linear_output_response, ql=500):
         
         # Create a Process object and store initial settings
-        self.process = process(pv0, sps, pvf, nf)
+        self.process = process(pv0, sps, pvf)
         self.pv0 = pv0
         self.sps = sps
         self.pvf = pvf
-        self.nf = nf
 
         # Screen Dimention Parameters
         self.w = 800
         self.h = 600
         self.plot_w = 650
-        self.plot_h = 500
+        self.plot_h = 400
         self.axis_w = 620
-        self.axis_h = 440
+        self.axis_h = 360
         self.tickmark_spacing = 100
 
         # Position Variables
@@ -70,12 +69,13 @@ class rl_controller():
             
             # Process Reset
             if self.process.current_time == self.simulation_length:
-                self.process = process(self.pv0, self.sps, self.pvf, self.nf)
+                self.process = process(self.pv0, self.sps, self.pvf)
                 self.queue_position = 0
                 self.displayed_time = np.arange(self.queue_length)
 
             # Simulate Controller
-            out = self.process.out[len(self.process.out) - 1] + (self.process.sp[len(self.process.sp) - 1] - self.process.pv[len(self.process.pv) - 1])
+            err = self.process.error[len(self.process.error) - 1]
+            out = self.process.out[len(self.process.out) - 1] - 0.002*err**5 - 0.005*err**4 - 0.01*err**3 - 0.123*err
             self.process.run(out)
 
             # Draw Objects
@@ -123,11 +123,11 @@ class rl_controller():
         out_rescaled = (np.ones(len(out)) * (self.h - self.axis_h)/2) + (np.array(out)/100 * self.axis_h)
 
         for idx in np.arange(0, pv_rescaled.size - 1):
-            pygame.draw.line(window, (0, 255, 0), (self.x_positions[idx], pv_rescaled[idx]), (self.x_positions[idx + 1], pv_rescaled[idx + 1]), 4)
+            pygame.draw.line(window, (10, 230, 10), (self.x_positions[idx], pv_rescaled[idx]), (self.x_positions[idx + 1], pv_rescaled[idx + 1]), 3)
         for idx in np.arange(0, sp_rescaled.size - 1):
-            pygame.draw.line(window, (255, 0, 0), (self.x_positions[idx], sp_rescaled[idx]), (self.x_positions[idx + 1], sp_rescaled[idx + 1]), 4)
+            pygame.draw.line(window, (230, 10, 10), (self.x_positions[idx], sp_rescaled[idx]), (self.x_positions[idx + 1], sp_rescaled[idx + 1]), 3)
         for idx in np.arange(0, out_rescaled.size - 1):
-            pygame.draw.line(window, (0, 0, 255), (self.x_positions[idx], out_rescaled[idx]), (self.x_positions[idx + 1], out_rescaled[idx + 1]), 4)
+            pygame.draw.line(window, (10, 10, 230), (self.x_positions[idx], out_rescaled[idx]), (self.x_positions[idx + 1], out_rescaled[idx + 1]), 3)
 
     def draw_axes(self, window, font):
 
@@ -153,9 +153,10 @@ class rl_controller():
             pygame.draw.line(window, (0, 0, 0), ((self.w - self.axis_w)/2, self.scale_zero_position), ((self.w - self.axis_w)/2 + self.axis_w, self.scale_zero_position))
             
             # Draw Tickmarks on Horizontal Axis
-            for idx, val in enumerate(self.displayed_time):
+            axis_offset = 60
+            for idx, val in enumerate(self.displayed_time[axis_offset:len(self.displayed_time)-axis_offset]):
                 if val%self.tickmark_spacing == 0:
-                    xpos = self.x_positions[idx]
+                    xpos = self.x_positions[idx + axis_offset]
                     pygame.draw.line(window, (0, 0, 0), (xpos, self.scale_zero_position - 6), (xpos, self.scale_zero_position + 6))
                     tickmark_txt = font.render(str(val), True, (0, 0, 0))
                     window.blit(tickmark_txt, dest=(xpos, self.scale_zero_position + 10))
@@ -163,12 +164,11 @@ class rl_controller():
 
 class process():
 
-    def __init__(self, pv0=0, sp=np.ones(2000), pvf=linear_output_response, nf=0.01):
+    def __init__(self, pv0=0, sp=np.ones(2000), pvf=linear_output_response):
         
         # Specified Parameters
         self.sp = sp
         self.pv_funct = pvf
-        self.noise_factor = nf
 
         # Init Queues
         self.current_time = 1
@@ -184,7 +184,7 @@ class process():
         self.out.append(o)
 
         # Calculate PV and Error, and update their queues
-        pv = self.pv_funct(self.pv[len(self.pv) - 1], o) + np.random.normal(0, 0.1)
+        pv = self.pv_funct(self.pv[len(self.pv) - 1], o)
         sp = self.sp[self.current_time]
         self.pv.append(pv)
         self.error.append(pv - sp)
