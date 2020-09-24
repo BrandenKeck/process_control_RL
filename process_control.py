@@ -58,7 +58,8 @@ class rl_controller():
         pygame.display.set_caption("controller")
 
         # Setup fonts
-        font = pygame.font.Font(pygame.font.get_default_font(), 18)
+        title_font = pygame.font.Font(pygame.font.get_default_font(), 26)
+        std_font = pygame.font.Font(pygame.font.get_default_font(), 18)
         
         # Start the game loop
         run = True
@@ -81,7 +82,7 @@ class rl_controller():
             # Draw Objects
             self.draw_window(window)
             self.draw_process(window)
-            self.draw_axes(window, font)
+            self.draw_axes_and_text(window, [title_font, std_font])
 
             # Update Display
             pygame.display.update()
@@ -129,21 +130,25 @@ class rl_controller():
         for idx in np.arange(0, out_rescaled.size - 1):
             pygame.draw.line(window, (10, 10, 230), (self.x_positions[idx], out_rescaled[idx]), (self.x_positions[idx + 1], out_rescaled[idx + 1]), 3)
 
-    def draw_axes(self, window, font):
+    def draw_axes_and_text(self, window, fonts):
 
+        # Draw Simulation Title Text
+        title_txt = fonts[0].render("Process Control with Reinforcement Learning v0.0.1", True, (0, 0, 0))
+        window.blit(title_txt, dest=((self.w - self.plot_w)/2, (self.h - self.plot_h)/2 - 60))
+        
         # Draw Vertical Axis
         pygame.draw.line(window, (0, 0, 0), ((self.w - self.axis_w)/2, (self.h - self.axis_h)/2), ((self.w - self.axis_w)/2, (self.h - self.axis_h)/2 + self.axis_h))
         
         # Draw Min Scale Text
-        scale_min_txt = font.render(str(round(self.scale_min, 2)), True, (0, 0, 0))
+        scale_min_txt = fonts[1].render(str(round(self.scale_min, 2)), True, (0, 0, 0))
         window.blit(scale_min_txt, dest=(self.scale_min_position[0], self.scale_min_position[1]))
-        scale_min_out_txt = font.render("(0)", True, (0, 0, 255))
+        scale_min_out_txt = fonts[1].render("(0)", True, (0, 0, 255))
         window.blit(scale_min_out_txt, dest=(self.scale_min_position[0] + 50, self.scale_min_position[1]))
 
         # Draw Max Scale Text
-        scale_max_txt = font.render(str(round(self.scale_max, 2)), True, (0, 0, 0))
+        scale_max_txt = fonts[1].render(str(round(self.scale_max, 2)), True, (0, 0, 0))
         window.blit(scale_max_txt, dest=(self.scale_max_position[0], self.scale_max_position[1]))
-        scale_max_out_txt = font.render("(100)", True, (0, 0, 255))
+        scale_max_out_txt = fonts[1].render("(100)", True, (0, 0, 255))
         window.blit(scale_max_out_txt, dest=(self.scale_max_position[0] + 50, self.scale_max_position[1]))
 
         if self.scale_min < 0 and self.scale_max > 0:
@@ -158,7 +163,7 @@ class rl_controller():
                 if val%self.tickmark_spacing == 0:
                     xpos = self.x_positions[idx + axis_offset]
                     pygame.draw.line(window, (0, 0, 0), (xpos, self.scale_zero_position - 6), (xpos, self.scale_zero_position + 6))
-                    tickmark_txt = font.render(str(val), True, (0, 0, 0))
+                    tickmark_txt = fonts[1].render(str(val), True, (0, 0, 0))
                     window.blit(tickmark_txt, dest=(xpos, self.scale_zero_position + 10))
 
 
