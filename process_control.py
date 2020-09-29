@@ -9,14 +9,14 @@ from copy import deepcopy
 from continuous_policy_gradient_methods import REINFORCE
 
 # Define a default response function
-def linear_output_response(pv, out, slope = 0.01):
+def linear_output_response(pv, out, slope = 0.001):
     return pv + slope * (out - 50) + np.random.normal(0, 0.05)
 
 # Class RL Controller
 class rl_controller():
 
     # Initialize Simulation
-    def __init__(self, lr_mean=5e-8, lr_var=0, df=0.85, pv0=0, sps=np.ones(2000), pvf=linear_output_response, max_dout=0.001, tolerance=0.1, reward_within_tolerance=10, eql=11, sl=10, ql=500):
+    def __init__(self, lr_mean=5e-8, lr_var=0, df=0.85, pv0=0, sps=np.ones(2000), pvf=linear_output_response, max_dout=0.001, tolerance=10, reward_within_tolerance=100, eql=11, sl=10, ql=500):
         
         # Create a Process object and store initial settings
         self.process = process(pv0, sps, pvf, max_dout)
@@ -110,17 +110,23 @@ class rl_controller():
         while self.training_counter < iterations: self.simulate()
         self.training_counter = 0
 
-    def explore(self, iterations, offset=50, amplitude=50, period=200):
+    def explore(self, iterations, exp_factor=0.01):
         
         # Explore for iterations
-        while self.training_counter < iterations: self.simulate(True, offset, amplitude, period)
+        while self.training_counter < iterations: self.simulate(exp_factor=0.01)
         self.training_counter = 0
 
-    def simulate(self, explore=False, offset=50, amplitude=50, period=200):
+    def simulate(self, exp_factor=-1):
         
             # Simulate Controller
-            if explore: self.last_action = offset + amplitude*np.sin(2 * np.pi * self.current_time / period)
-            else: self.act()
+            if exp_factor > 0: 
+                pv = self.process.pv[len(self.process.pv)-1]
+                sp = self.process.sp[len(self.process.pv)-1]
+                self.last_action = self.last_action + exp_factor*(sp - pv)
+            else: 
+                self.act()
+
+            # Compute error and append the process
             err = self.process.run(self.last_action)
             
             # Process Reset
@@ -148,12 +154,12 @@ class rl_controller():
     def learn(self, err):
         
         # Append the Error to the state queue and pop the trailing value
-        self.state.append(err)
-        while len(self.state) > self.state_length: self.state.pop(0)
+        #self.state.append(err)
+        #while len(self.state) > self.state_length: self.state.pop(0)
+        self.state = [self.process.pv[len(self.process.pv)-1], self.process.sp[len(self.process.pv)-1]]
 
-        # Reward is negative squared error
-        if np.abs(err) < self.tol: self.reward = self.rwt
-        else: self.reward = -np.abs(err)
+        # Reward is scaled to the tolerance factor
+        self.reward = self.rwt * (self.tol - np.abs(err))/self.tol
 
         # Learn parameters for the REINFORCE method
         self.policy_gradients.learn(self.state, self.episode_complete, self.reward, self.last_action)
@@ -236,6 +242,12 @@ class rl_controller():
                     pygame.draw.line(window, (0, 0, 0), (xpos, self.scale_zero_position - 6), (xpos, self.scale_zero_position + 6))
                     tickmark_txt = fonts[1].render(str(val), True, (0, 0, 0))
                     window.blit(tickmark_txt, dest=(xpos, self.scale_zero_position + 10))
+
+        # Draw Simulation Details Text
+        rwd_txt = fonts[1].render("Current Reward: " + str(self.reward), True, (0, 0, 0))
+        window.blit(rwd_txt, dest=((self.w - self.plot_w)/2 + 10, self.h - (self.h - self.plot_h)/2 + 30))
+        la_txt = fonts[1].render("Last Action: " + str(self.last_action), True, (0, 0, 0))
+        window.blit(la_txt, dest=((self.w - self.plot_w)/2 + 10, self.h - (self.h - self.plot_h)/2 + 60))
 
 
 class process():
