@@ -1,12 +1,11 @@
 # Standard Imports
-import sys, os
+import os
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
 import numpy as np
-from copy import deepcopy
 
 # Custom Learning Modules
-from continuous_policy_gradient_methods import REINFORCE
+from continuous_policy_gradient_methods import Binomial_Policy_REINFORCE
 
 # Define a default response function
 def linear_output_response(pv, out, slope = 0.001):
@@ -16,7 +15,7 @@ def linear_output_response(pv, out, slope = 0.001):
 class rl_controller():
 
     # Initialize Simulation
-    def __init__(self, lr_mean=5e-8, lr_var=0, df=0.85, pv0=0, sps=np.ones(2000), pvf=linear_output_response, max_dout=0.001, tolerance=10, reward_within_tolerance=100, eql=11, sl=10, ql=500):
+    def __init__(self, lr=1e-8, df=0.85, pv0=0, sps=np.ones(2000), pvf=linear_output_response, max_dout=0.001, tolerance=10, reward_within_tolerance=100, eql=11, sl=10, ql=500):
         
         # Create a Process object and store initial settings
         self.process = process(pv0, sps, pvf, max_dout)
@@ -27,9 +26,9 @@ class rl_controller():
         self.rwt = reward_within_tolerance
 
         # Create Learning Objects
-        self.policy_gradients = REINFORCE(lr_mean, lr_var, df, eql, sl)
-        self.state = np.zeros(sl).tolist()
-        self.state_length = sl
+        self.policy_gradients = Binomial_Policy_REINFORCE(lr, df, eql, 3*sl)
+        self.state = np.zeros(3*sl).tolist()
+        self.state_length = 3*sl
         self.reward = 0
         self.last_action = 0
 
@@ -61,7 +60,6 @@ class rl_controller():
         self.episode_complete = False
         self.episode_counter = 0
         self.training_counter = 0
-        self.current_time = 0
 
     # Pygame Function to Display Visual Simulations
     def run(self):
@@ -127,7 +125,7 @@ class rl_controller():
                 self.act()
 
             # Compute error and append the process
-            err = self.process.run(self.last_action)
+            pv, sp, err = self.process.run(self.last_action)
             
             # Process Reset
             if self.process.current_time == self.simulation_length:
@@ -137,26 +135,27 @@ class rl_controller():
                 self.episode_complete = True
                 self.episode_counter = self.episode_counter + 1
                 self.training_counter = self.training_counter + 1
-                self.current_time = 0
                 print("Completed episodes: " + str(self.episode_counter))
             
             # Learn via policy gradient
-            self.learn(err)
-
-            # Increment Time
-            self.current_time = self.current_time + 1
+            self.learn(pv, sp, err)
 
     def act(self):
 
         # Take an action based on the REINFORCE method policy
         self.last_action = self.policy_gradients.act(self.state)
 
-    def learn(self, err):
+    def learn(self, pv, sp, err):
         
         # Append the Error to the state queue and pop the trailing value
-        #self.state.append(err)
-        #while len(self.state) > self.state_length: self.state.pop(0)
-        self.state = [self.process.pv[len(self.process.pv)-1], self.process.sp[len(self.process.pv)-1]]
+        self.state.append(pv)
+        self.state.append(sp)
+        self.state.append(err)
+        while len(self.state) > self.state_length:
+            self.state.pop(0)
+            self.state.pop(1)
+            self.state.pop(2)
+        #self.state = [self.process.pv[len(self.process.pv)-1], self.process.sp[len(self.process.pv)-1]]
 
         # Reward is scaled to the tolerance factor
         self.reward = self.rwt * (self.tol - np.abs(err))/self.tol
@@ -287,4 +286,4 @@ class process():
         self.current_time = self.current_time + 1
 
         # Return Error
-        return (pv - sp)
+        return pv, sp, (pv - sp)
