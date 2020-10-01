@@ -15,15 +15,14 @@ setpoints = np.arange(500)/20
 '''
 
 my_controller = rl_controller(pv0 = 22.5,
-    sps=25*np.ones(200),
+    sps=25*np.ones(2000),
     #pvf=cooling_valve,
-    lr=1e-6,
-    df=0.85,
-    eql=6, sl=20,
-    tolerance=6, reward_within_tolerance=30,
-    ql = 200)
+    lr=0.01e-5,
+    df=0.1,
+    eql=11, sl=10,
+    ql = 2000)
 
 #my_controller = rl_controller()
 #my_controller.explore(10, exp_factor=0.01)
-#my_controller.train(10)
+my_controller.train(25)
 my_controller.run()

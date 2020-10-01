@@ -1,16 +1,15 @@
 # Standard Imports
-import os
-os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
 import pygame
 import numpy as np
+from copy import deepcopy
 
 # Custom Learning Modules
-from continuous_policy_gradient_methods import Binomial_Policy_REINFORCE
+from continuous_policy_gradient_methods import Binomial_Policy_Actor_Critic
 
 # Define a default response function
 # Variance in slope, output, and random acceptable
-def linear_output_response(pv, out, slope = 0.001):
-    return pv + slope * (out - 50) + np.random.normal(0, 0.05)
+def linear_output_response(pv, out, slope = 0.01):
+    return pv + slope * (out - 50) #+ np.random.normal(0, 0.05)
 
 # Class RL Controller
 class rl_controller():
@@ -27,11 +26,12 @@ class rl_controller():
         self.rwt = reward_within_tolerance
 
         # Create Learning Objects
-        self.policy_gradients = Binomial_Policy_REINFORCE(lr, df, eql, 3*sl)
-        self.state = np.zeros(3*sl).tolist()
-        self.state_length = 3*sl
+        self.policy_gradients = Binomial_Policy_Actor_Critic(lr, df, eql, 2*sl)
+        self.state = np.zeros(2*sl).tolist()
+        self.state_length = 2*sl
         self.reward = 0
         self.last_action = 0
+        self.last_error = 0
 
         # Screen Dimention Parameters
         # Parameter variance acceptable
@@ -127,7 +127,7 @@ class rl_controller():
                 self.act()
 
             # Compute error and append the process
-            pv, sp, err = self.process.run(self.last_action)
+            pv, sp = self.process.run(self.last_action)
             
             # Process Reset
             if self.process.current_time == self.simulation_length:
@@ -140,30 +140,29 @@ class rl_controller():
                 print("Completed episodes: " + str(self.episode_counter))
             
             # Learn via policy gradient
-            self.learn(pv, sp, err)
+            self.learn(pv, sp)
 
     def act(self):
 
         # Take an action based on the REINFORCE method policy
         self.last_action = self.policy_gradients.act(self.state)
 
-    def learn(self, pv, sp, err):
+    def learn(self, pv, sp):
         
         # Append the Error to the state queue and pop the trailing value
-        self.state.append(pv)
-        self.state.append(sp)
-        self.state.append(err)
-        while len(self.state) > self.state_length:
-            self.state.pop(0)
-            self.state.pop(1)
-            self.state.pop(2)
-        #self.state = [self.process.pv[len(self.process.pv)-1], self.process.sp[len(self.process.pv)-1]]
+        self.state.append(pv - sp)
+        while len(self.state) > self.state_length: self.state.pop(0)
+
 
         # Reward is scaled to the tolerance factor
-        self.reward = self.rwt * (self.tol - np.abs(err))/self.tol
+        err = np.abs(pv-sp)
+        if self.last_error == 0 : reward = 0
+        else: self.reward = np.abs(pv-sp)*((self.last_error - err))
+        self.last_error = err
 
         # Learn parameters for the REINFORCE method
-        self.policy_gradients.learn(self.state, self.episode_complete, self.reward, self.last_action)
+        state = deepcopy(self.state)
+        self.policy_gradients.learn(state, self.episode_complete, self.reward, self.last_action)
         if self.episode_complete: self.episode_complete = False
 
     def draw_window(self, window):
@@ -273,7 +272,6 @@ class process():
         
         # Init Stored Values
         self.prev_out = 0
-        self.prev_err = 0
 
     #Run function
     def run(self, o):
@@ -295,4 +293,4 @@ class process():
         self.current_time = self.current_time + 1
 
         # Return Error
-        return pv, sp, (pv - sp)
+        return pv, sp
