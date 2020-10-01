@@ -8,6 +8,7 @@ import numpy as np
 from continuous_policy_gradient_methods import Binomial_Policy_REINFORCE
 
 # Define a default response function
+# Variance in slope, output, and random acceptable
 def linear_output_response(pv, out, slope = 0.001):
     return pv + slope * (out - 50) + np.random.normal(0, 0.05)
 
@@ -32,7 +33,8 @@ class rl_controller():
         self.reward = 0
         self.last_action = 0
 
-        # Hardcoded Screen Dimention Parameters
+        # Screen Dimention Parameters
+        # Parameter variance acceptable
         self.w = 800
         self.h = 600
         self.plot_w = 650
@@ -170,7 +172,8 @@ class rl_controller():
         pygame.draw.rect(window, (230, 230, 230), (0, 0, self.w, self.h))
         pygame.draw.rect(window, (0, 0, 0), ((self.w - self.plot_w)/2 - 10, (self.h - self.plot_h)/2 - 10, self.plot_w + 20, self.plot_h + 20))
         pygame.draw.rect(window, (255, 255, 255), ((self.w - self.plot_w)/2, (self.h - self.plot_h)/2, self.plot_w, self.plot_h))
-        
+    
+    #Draw function
     def draw_process(self, window, fonts):
         
         # Rescale the output
@@ -192,10 +195,13 @@ class rl_controller():
         sp_rescaled = (np.ones(len(sp)) * (self.h - self.axis_h)/2) + ((((np.ones(len(sp)) * self.scale_max) - np.array(sp))/(self.scale_max - self.scale_min)) * (self.axis_h))
         out_rescaled = (np.ones(len(out)) * (self.h - self.axis_h)/2) + ((1 - np.array(out)/100) * self.axis_h)
 
+        #Drawline 0
         for idx in np.arange(0, pv_rescaled.size - 1):
             pygame.draw.line(window, (10, 230, 10), (self.x_positions[idx], pv_rescaled[idx]), (self.x_positions[idx + 1], pv_rescaled[idx + 1]), 3)
+        #Drawline 1
         for idx in np.arange(0, sp_rescaled.size - 1):
             pygame.draw.line(window, (230, 10, 10), (self.x_positions[idx], sp_rescaled[idx]), (self.x_positions[idx + 1], sp_rescaled[idx + 1]), 3)
+        #Drawline 2
         for idx in np.arange(0, out_rescaled.size - 1):
             pygame.draw.line(window, (10, 10, 230), (self.x_positions[idx], out_rescaled[idx]), (self.x_positions[idx + 1], out_rescaled[idx + 1]), 3)
         
@@ -209,7 +215,8 @@ class rl_controller():
     def draw_axes_and_text(self, window, fonts):
 
         # Draw Simulation Title Text
-        title_txt = fonts[0].render("Process Control with Reinforcement Learning v0.0.1", True, (0, 0, 0))
+        # Drone control using reinforcement learning
+        title_txt = fonts[0].render("Drone Control using Reinforcement Learning v0.0.2", True, (0, 0, 0))
         window.blit(title_txt, dest=((self.w - self.plot_w)/2, (self.h - self.plot_h)/2 - 60))
         
         # Draw Vertical Axis
@@ -248,9 +255,10 @@ class rl_controller():
         la_txt = fonts[1].render("Last Action: " + str(self.last_action), True, (0, 0, 0))
         window.blit(la_txt, dest=((self.w - self.plot_w)/2 + 10, self.h - (self.h - self.plot_h)/2 + 60))
 
-
+#Process class
 class process():
-
+    
+    #Initialize function
     def __init__(self, pv0=0, sp=np.ones(2000), pvf=linear_output_response, max_dout=0.001):
         
         # Specified Parameters
@@ -267,6 +275,7 @@ class process():
         self.prev_out = 0
         self.prev_err = 0
 
+    #Run function
     def run(self, o):
 
         # Truncate output to applicable range and update queue
