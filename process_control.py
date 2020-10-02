@@ -8,17 +8,17 @@ from continuous_policy_gradient_methods import Binomial_Policy_Actor_Critic
 
 # Define a default response function
 # Variance in slope, output, and random acceptable
-def linear_output_response(pv, out, slope = 0.01):
+def linear_output_response(pv, out, slope = 0.001):
     return pv + slope * (out - 50) #+ np.random.normal(0, 0.05)
 
 # Class RL Controller
 class rl_controller():
 
     # Initialize Simulation
-    def __init__(self, lr=1e-8, df=0.85, pv0=0, sps=np.ones(2000), pvf=linear_output_response, max_dout=0.001, tolerance=10, reward_within_tolerance=100, eql=11, sl=10, ql=500):
+    def __init__(self, lr=1e-8, df=0.85, pv0=0, sps=np.ones(2000), pvf=linear_output_response, tolerance=10, reward_within_tolerance=100, eql=11, sl=10, ql=500):
         
         # Create a Process object and store initial settings
-        self.process = process(pv0, sps, pvf, max_dout)
+        self.process = process(pv0=pv0, sp=sps, pvf=pvf)
         self.pv0 = pv0
         self.sps = sps
         self.pvf = pvf
@@ -131,7 +131,7 @@ class rl_controller():
             
             # Process Reset
             if self.process.current_time == self.simulation_length:
-                self.process = process(self.pv0, self.sps, self.pvf)
+                self.process = process(pv0=pv, out0=self.last_action, sp=self.sps, pvf=self.pvf)
                 self.queue_position = 0
                 self.displayed_time = np.arange(self.queue_length)
                 self.episode_complete = True
@@ -158,6 +158,7 @@ class rl_controller():
         err = np.abs(pv-sp)
         if self.last_error == 0 : reward = 0
         else: self.reward = np.abs(pv-sp)*((self.last_error - err))
+        if err < 1: self.reward = self.reward + 100
         self.last_error = err
 
         # Learn parameters for the REINFORCE method
@@ -258,7 +259,7 @@ class rl_controller():
 class process():
     
     #Initialize function
-    def __init__(self, pv0=0, sp=np.ones(2000), pvf=linear_output_response, max_dout=0.001):
+    def __init__(self, pv0=0, out0=50, sp=np.ones(2000), pvf=linear_output_response, max_dout=0.001):
         
         # Specified Parameters
         self.sp = sp
@@ -268,7 +269,7 @@ class process():
         # Init Queues
         self.current_time = 1
         self.pv = [pv0]
-        self.out = []
+        self.out = [out0]
         
         # Init Stored Values
         self.prev_out = 0

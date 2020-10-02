@@ -45,11 +45,11 @@ class Binomial_Policy_Actor_Critic():
                     d_action = e.actions[t] - e.actions[t - 1]
                     sig = sigmoid(np.dot(self.params, state))
                     if d_action < 0:
-                        d_lnpi = -((2 * sig) / (1 - sig)) * np.array(state)
+                        d_lnpi = -(2 * sig) * np.array(state)
                     elif d_action == 0:
-                        d_lnpi = (2 * sig - 1) * np.array(state)
+                        d_lnpi = (1 - 2 * sig) * np.array(state)
                     elif d_action > 0:
-                        d_lnpi = -((2 * sig - 2) / sig) * np.array(state)
+                        d_lnpi = 2 * (1 - sig) * np.array(state)
 
                     # Update training weights
                     delta = rewards + self.df * next_state_value - state_value
