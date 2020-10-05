@@ -26,12 +26,13 @@ class rl_controller():
         self.rwt = reward_within_tolerance
 
         # Create Learning Objects
-        self.policy_gradients = Binomial_Policy_Actor_Critic(lr, df, eql, 2*sl)
-        self.state = np.zeros(2*sl).tolist()
-        self.state_length = 2*sl
+        self.policy_gradients = Binomial_Policy_Actor_Critic(lr, df, eql, sl)
+        self.state = np.zeros(sl).tolist()
+        self.state_length = sl
         self.reward = 0
         self.last_action = 0
         self.last_error = 0
+        self.last_d_err = 0
 
         # Screen Dimention Parameters
         # Parameter variance acceptable
@@ -145,7 +146,7 @@ class rl_controller():
     def act(self):
 
         # Take an action based on the REINFORCE method policy
-        self.last_action = self.policy_gradients.act(self.state)
+        self.last_action = self.policy_gradients.act(self.state, self.last_action)
 
     def learn(self, pv, sp):
         
@@ -156,10 +157,14 @@ class rl_controller():
 
         # Reward is scaled to the tolerance factor
         err = np.abs(pv-sp)
-        if self.last_error == 0 : reward = 0
-        else: self.reward = np.abs(pv-sp)*((self.last_error - err))
+        d_err = np.abs(self.last_error - err)
+        if self.last_error == 0 or d_err == 0: self.reward = 0
+        elif d_err < self.last_d_err: self.reward = -1
+        elif d_err > self.last_d_err: self.reward = 1
+        #else: self.reward = err*(self.last_error - err)#*(self.policy_gradients.p)*(1 - self.policy_gradients.p)
         if err < 1: self.reward = self.reward + 100
         self.last_error = err
+        self.last_d_err = d_err
 
         # Learn parameters for the REINFORCE method
         state = deepcopy(self.state)
@@ -216,7 +221,7 @@ class rl_controller():
 
         # Draw Simulation Title Text
         # Drone control using reinforcement learning
-        title_txt = fonts[0].render("Drone Control using Reinforcement Learning v0.0.2", True, (0, 0, 0))
+        title_txt = fonts[0].render("b-Control using Reinforcement Learning v0.0.3", True, (0, 0, 0))
         window.blit(title_txt, dest=((self.w - self.plot_w)/2, (self.h - self.plot_h)/2 - 60))
         
         # Draw Vertical Axis
