@@ -31,7 +31,7 @@ class rl_controller():
         self.state_length = sl
         self.reward = 0
         self.last_action = 0
-        self.last_error = 0
+        self.last_err = 0
         self.last_d_err = 0
 
         # Screen Dimention Parameters
@@ -156,14 +156,21 @@ class rl_controller():
 
 
         # Reward is scaled to the tolerance factor
-        err = np.abs(pv-sp)
-        d_err = np.abs(self.last_error - err)
-        if self.last_error == 0 or d_err == 0: self.reward = 0
-        elif d_err < self.last_d_err: self.reward = -1
-        elif d_err > self.last_d_err: self.reward = 1
+        err = pv - sp
+        d_err = err - self.last_err
+        d2_err = d_err - self.last_d_err
+        self.reward = d2_err
+        '''print(pv)
+        print(sp)
+        print(d_err)
+        print(d2_err)
+        input()'''
+        #if self.last_err == 0 or d_err == 0: self.reward = 0
+        #elif d_err > 0: self.reward = err
+        #elif d_err < 0: self.reward = -err
         #else: self.reward = err*(self.last_error - err)#*(self.policy_gradients.p)*(1 - self.policy_gradients.p)
-        if err < 1: self.reward = self.reward + 100
-        self.last_error = err
+        #if err < 1: self.reward = self.reward + 100
+        self.last_err = err
         self.last_d_err = d_err
 
         # Learn parameters for the REINFORCE method

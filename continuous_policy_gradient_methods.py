@@ -22,7 +22,6 @@ class Binomial_Policy_Actor_Critic():
 
     def act(self, state, last_action):
         self.p = sigmoid(np.dot(self.params, state))
-        print(self.p)
         self.e = 0.1
         next_action = last_action + (self.e * (np.random.binomial(2, self.p) - 1))
         return next_action
@@ -54,7 +53,6 @@ class Binomial_Policy_Actor_Critic():
 
                     # Update training weights
                     delta = rewards + self.df * next_state_value - state_value
-                    print(state_value)
                     self.w = self.w + self.lr_vf * delta * state
                     self.params = self.params + self.lr_p * (self.df ** t) * delta * d_lnpi
 
