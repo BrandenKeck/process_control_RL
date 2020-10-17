@@ -55,6 +55,7 @@ class Binomial_Policy_Actor_Critic():
                     delta = rewards + self.df * next_state_value - state_value
                     self.w = self.w + self.lr_vf * delta * state
                     self.params = self.params + self.lr_p * (self.df ** t) * delta * d_lnpi
+                    #print(sig)
 
         # Append episode queues with information from the current State / Action / Reward
         self.episode_queue[len(self.episode_queue) - 1].states.append(next_state)

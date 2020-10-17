@@ -15,24 +15,25 @@ def linear_output_response(pv, out, slope = 0.001):
 class rl_controller():
 
     # Initialize Simulation
-    def __init__(self, lr=1e-8, df=0.85, pv0=0, sps=np.ones(2000), pvf=linear_output_response, tolerance=10, reward_within_tolerance=100, eql=11, sl=10, ql=500):
+    def __init__(self, lr=1e-8, df=0.85, pv0=0, out0=50, sps=np.ones(2000), pvf=linear_output_response, lsl=0, usl=2, eql=11, sl=10, ql=500):
         
         # Create a Process object and store initial settings
-        self.process = process(pv0=pv0, sp=sps, pvf=pvf)
+        self.process = process(pv0=pv0, out0=out0, sp=sps, pvf=pvf)
         self.pv0 = pv0
+        self.out0 = out0
         self.sps = sps
         self.pvf = pvf
-        self.tol = tolerance
-        self.rwt = reward_within_tolerance
+        self.lsl = lsl
+        self.usl = usl
 
         # Create Learning Objects
-        self.policy_gradients = Binomial_Policy_Actor_Critic(lr, df, eql, sl)
-        self.state = np.zeros(sl).tolist()
-        self.state_length = sl
+        self.policy_gradients = Binomial_Policy_Actor_Critic(lr, df, eql, 2*sl)
+        self.errors = np.zeros(sl).tolist()
+        self.errors_length = sl
+        self.state = np.zeros(2*sl).tolist()
+        self.state_length = 2*sl
         self.reward = 0
         self.last_action = 0
-        self.last_err = 0
-        self.last_d_err = 0
 
         # Screen Dimention Parameters
         # Parameter variance acceptable
@@ -132,7 +133,8 @@ class rl_controller():
             
             # Process Reset
             if self.process.current_time == self.simulation_length:
-                self.process = process(pv0=pv, out0=self.last_action, sp=self.sps, pvf=self.pvf)
+                self.process = process(pv0=self.pv0, out0=self.out0, sp=self.sps, pvf=self.pvf)
+                self.state = np.zeros(self.state_length).tolist()
                 self.queue_position = 0
                 self.displayed_time = np.arange(self.queue_length)
                 self.episode_complete = True
@@ -152,28 +154,27 @@ class rl_controller():
         
         # Append the Error to the state queue and pop the trailing value
         self.state.append(pv - sp)
+        self.state.append(self.last_action)
         while len(self.state) > self.state_length: self.state.pop(0)
+
+        self.errors.append(pv - sp)
+        while len(self.errors) > self.errors_length: self.errors.pop(0)
 
 
         # Reward is scaled to the tolerance factor
-        err = pv - sp
-        d_err = err - self.last_err
-        d2_err = d_err - self.last_d_err
-        self.reward = d2_err
-        '''print(pv)
-        print(sp)
-        print(d_err)
-        print(d2_err)
-        input()'''
-        #if self.last_err == 0 or d_err == 0: self.reward = 0
-        #elif d_err > 0: self.reward = err
-        #elif d_err < 0: self.reward = -err
-        #else: self.reward = err*(self.last_error - err)#*(self.policy_gradients.p)*(1 - self.policy_gradients.p)
-        #if err < 1: self.reward = self.reward + 100
-        self.last_err = err
-        self.last_d_err = d_err
+        if 0 in self.state: self.reward = 0
+        else:
+            sum_dderr = 0
+            for i in np.arange(self.errors_length-3):
+                dderr = np.abs(self.errors[i+2]) - 2*np.abs(self.errors[i+1]) + np.abs(self.errors[i])
+                sum_dderr = sum_dderr + dderr
 
-        # Learn parameters for the REINFORCE method
+            if sum_dderr == 0:  self.reward = 0
+            elif sum_dderr > 0: self.reward = -1*(np.abs(pv - sp))
+            else: self.reward = (1/np.abs(pv - sp))
+
+        #if np.abs(pv - sp) < 10: self.reward = 100
+
         state = deepcopy(self.state)
         self.policy_gradients.learn(state, self.episode_complete, self.reward, self.last_action)
         if self.episode_complete: self.episode_complete = False
@@ -266,6 +267,7 @@ class rl_controller():
         window.blit(rwd_txt, dest=((self.w - self.plot_w)/2 + 10, self.h - (self.h - self.plot_h)/2 + 30))
         la_txt = fonts[1].render("Last Action: " + str(self.last_action), True, (0, 0, 0))
         window.blit(la_txt, dest=((self.w - self.plot_w)/2 + 10, self.h - (self.h - self.plot_h)/2 + 60))
+
 
 #Process class
 class process():

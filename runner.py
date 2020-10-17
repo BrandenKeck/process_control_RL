@@ -12,15 +12,20 @@ for i in np.arange(4):
     setpoints = np.concatenate((setpoints, flipper*np.ones(200)))
 
 #setpoints = np.arange(500)/20 
-my_controller = rl_controller(pv0 = 22.5,
-    sps=25*np.ones(500),
+my_controller = rl_controller(
+    pv0 = 22.5,
+    out0 = 50,
+    sps=25*np.ones(2000),
+    lsl = 20,
+    usl = 30,
     #pvf=cooling_valve,
-    lr=0.01e-5,
-    df=0.1,
-    eql=4, sl=20,
-    ql = 500)
+    lr=0.0000001,
+    df=1,
+    eql=6, sl=20,
+    ql = 1000
+)
 
 #my_controller = rl_controller()
-#my_controller.explore(100, exp_factor=0.01)
-my_controller.train(100)
+#my_controller.explore(200, exp_factor=0.01)
+my_controller.train(200)
 my_controller.run()
