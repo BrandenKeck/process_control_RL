@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="f5c1467b-60e9-49f8-92e1-ec7c50b38f88" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/continuous_policy_gradient_methods.py" beforeDir="false" afterPath="$PROJECT_DIR$/continuous_policy_gradient_methods.py" afterDir="false" />
+    <list default="true" id="dce612f5-184a-49f1-8bbe-b1532c32cbe6" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/Process_Control_RL.iml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/rSettings.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/process_control.py" beforeDir="false" afterPath="$PROJECT_DIR$/process_control.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/runner.py" beforeDir="false" afterPath="$PROJECT_DIR$/runner.py" afterDir="false" />
     </list>
@@ -14,7 +18,7 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectId" id="1iCm8NcJjHSpZTcQvJXgy814EHE" />
+  <component name="ProjectId" id="1jDZCLgdpjgxirwn0Iv1qJpvTkK" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -22,33 +26,10 @@
   </component>
   <component name="PropertiesComponent">
     <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
-    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
   </component>
-  <component name="RunManager" selected="Python.runner">
-    <configuration name="process_control" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="Process_Control_RL" />
-      <option name="INTERPRETER_OPTIONS" value="" />
-      <option name="PARENT_ENVS" value="true" />
-      <envs>
-        <env name="PYTHONUNBUFFERED" value="1" />
-      </envs>
-      <option name="SDK_HOME" value="" />
-      <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
-      <option name="IS_MODULE_SDK" value="true" />
-      <option name="ADD_CONTENT_ROOTS" value="true" />
-      <option name="ADD_SOURCE_ROOTS" value="true" />
-      <option name="SCRIPT_NAME" value="$PROJECT_DIR$/process_control.py" />
-      <option name="PARAMETERS" value="" />
-      <option name="SHOW_COMMAND_LINE" value="false" />
-      <option name="EMULATE_TERMINAL" value="false" />
-      <option name="MODULE_MODE" value="false" />
-      <option name="REDIRECT_INPUT" value="false" />
-      <option name="INPUT_FILE" value="" />
-      <method v="2" />
-    </configuration>
+  <component name="RunManager">
     <configuration name="runner" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
-      <module name="Process_Control_RL" />
+      <module name="b_control" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -71,68 +52,36 @@
     <recent_temporary>
       <list>
         <item itemvalue="Python.runner" />
-        <item itemvalue="Python.process_control" />
       </list>
     </recent_temporary>
   </component>
-  <component name="SpellCheckerSettings" BundledDictionaries="0" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" Dictionaries="0" CorrectionsLimit="5" DefaultDictionary="application-level" UseSingleDictionary="true" />
-  <component name="SvnConfiguration">
-    <configuration />
-  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
-      <changelist id="f5c1467b-60e9-49f8-92e1-ec7c50b38f88" name="Default Changelist" comment="" />
-      <created>1601419788434</created>
+      <changelist id="dce612f5-184a-49f1-8bbe-b1532c32cbe6" name="Default Changelist" comment="" />
+      <created>1603340493104</created>
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
-      <updated>1601419788434</updated>
+      <updated>1603340493104</updated>
     </task>
     <servers />
   </component>
   <component name="WindowStateProjectService">
-    <state x="2338" y="197" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1601419836675">
+    <state width="1897" height="284" key="GridCell.Tab.0.bottom" timestamp="1603340571220">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state x="2338" y="197" key="#com.intellij.execution.impl.EditConfigurationsDialog/67.27.1853.1053/1920.0.1920.1080@1920.0.1920.1080" timestamp="1601419836675" />
-    <state width="1835" height="294" key="GridCell.Tab.0.bottom" timestamp="1602193692640">
-      <screen x="1982" y="0" width="1858" height="1080" />
-    </state>
-    <state width="1835" height="294" key="GridCell.Tab.0.bottom/0.0.1858.1080/1982.0.1858.1080@1982.0.1858.1080" timestamp="1602193692640" />
-    <state width="1897" height="372" key="GridCell.Tab.0.bottom/67.27.1853.1053/1920.0.1920.1080@1920.0.1920.1080" timestamp="1601568764051" />
-    <state width="1835" height="294" key="GridCell.Tab.0.center" timestamp="1602193692640">
-      <screen x="1982" y="0" width="1858" height="1080" />
-    </state>
-    <state width="1835" height="294" key="GridCell.Tab.0.center/0.0.1858.1080/1982.0.1858.1080@1982.0.1858.1080" timestamp="1602193692640" />
-    <state width="1897" height="372" key="GridCell.Tab.0.center/67.27.1853.1053/1920.0.1920.1080@1920.0.1920.1080" timestamp="1601568764051" />
-    <state width="1835" height="294" key="GridCell.Tab.0.left" timestamp="1602193692640">
-      <screen x="1982" y="0" width="1858" height="1080" />
-    </state>
-    <state width="1835" height="294" key="GridCell.Tab.0.left/0.0.1858.1080/1982.0.1858.1080@1982.0.1858.1080" timestamp="1602193692640" />
-    <state width="1897" height="372" key="GridCell.Tab.0.left/67.27.1853.1053/1920.0.1920.1080@1920.0.1920.1080" timestamp="1601568764051" />
-    <state width="1835" height="294" key="GridCell.Tab.0.right" timestamp="1602193692640">
-      <screen x="1982" y="0" width="1858" height="1080" />
-    </state>
-    <state width="1835" height="294" key="GridCell.Tab.0.right/0.0.1858.1080/1982.0.1858.1080@1982.0.1858.1080" timestamp="1602193692640" />
-    <state width="1897" height="372" key="GridCell.Tab.0.right/67.27.1853.1053/1920.0.1920.1080@1920.0.1920.1080" timestamp="1601568764051" />
-    <state width="1897" height="354" key="GridCell.Tab.1.bottom" timestamp="1601562531136">
+    <state width="1897" height="284" key="GridCell.Tab.0.bottom/72.27.1848.1053/1920.0.1920.1080@1920.0.1920.1080" timestamp="1603340571220" />
+    <state width="1897" height="284" key="GridCell.Tab.0.center" timestamp="1603340571220">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state width="1897" height="354" key="GridCell.Tab.1.bottom/67.27.1853.1053/1920.0.1920.1080@1920.0.1920.1080" timestamp="1601562531136" />
-    <state width="1897" height="354" key="GridCell.Tab.1.center" timestamp="1601562531136">
+    <state width="1897" height="284" key="GridCell.Tab.0.center/72.27.1848.1053/1920.0.1920.1080@1920.0.1920.1080" timestamp="1603340571220" />
+    <state width="1897" height="284" key="GridCell.Tab.0.left" timestamp="1603340571220">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state width="1897" height="354" key="GridCell.Tab.1.center/67.27.1853.1053/1920.0.1920.1080@1920.0.1920.1080" timestamp="1601562531136" />
-    <state width="1897" height="354" key="GridCell.Tab.1.left" timestamp="1601562531136">
+    <state width="1897" height="284" key="GridCell.Tab.0.left/72.27.1848.1053/1920.0.1920.1080@1920.0.1920.1080" timestamp="1603340571220" />
+    <state width="1897" height="284" key="GridCell.Tab.0.right" timestamp="1603340571220">
       <screen x="1920" y="0" width="1920" height="1080" />
     </state>
-    <state width="1897" height="354" key="GridCell.Tab.1.left/67.27.1853.1053/1920.0.1920.1080@1920.0.1920.1080" timestamp="1601562531136" />
-    <state width="1897" height="354" key="GridCell.Tab.1.right" timestamp="1601562531136">
-      <screen x="1920" y="0" width="1920" height="1080" />
-    </state>
-    <state width="1897" height="354" key="GridCell.Tab.1.right/67.27.1853.1053/1920.0.1920.1080@1920.0.1920.1080" timestamp="1601562531136" />
-    <state x="1920" y="357" width="1553" height="723" key="dock-window-1" timestamp="1601420287149">
-      <screen x="1920" y="0" width="1920" height="1080" />
-    </state>
-    <state x="1920" y="357" width="1553" height="723" key="dock-window-1/67.27.1853.1053/1920.0.1920.1080@1920.0.1920.1080" timestamp="1601420287149" />
+    <state width="1897" height="284" key="GridCell.Tab.0.right/72.27.1848.1053/1920.0.1920.1080@1920.0.1920.1080" timestamp="1603340571220" />
   </component>
 </project>

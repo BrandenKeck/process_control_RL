@@ -15,14 +15,14 @@ for i in np.arange(4):
 my_controller = rl_controller(
     pv0 = 22.5,
     out0 = 50,
-    sps=25*np.ones(2000),
+    sps=25*np.ones(250),
     lsl = 20,
     usl = 30,
     #pvf=cooling_valve,
     lr=0.0000001,
     df=1,
-    eql=6, sl=20,
-    ql = 1000
+    eql=11, sl=10,
+    ql = 250
 )
 
 #my_controller = rl_controller()

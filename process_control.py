@@ -27,13 +27,14 @@ class rl_controller():
         self.usl = usl
 
         # Create Learning Objects
-        self.policy_gradients = Binomial_Policy_Actor_Critic(lr, df, eql, 2*sl)
+        self.policy_gradients = Binomial_Policy_Actor_Critic(lr, df, eql, sl)
         self.errors = np.zeros(sl).tolist()
         self.errors_length = sl
-        self.state = np.zeros(2*sl).tolist()
-        self.state_length = 2*sl
+        self.state = np.zeros(sl).tolist()
+        self.state_length = sl
         self.reward = 0
         self.last_action = 0
+        self.max_error = 0
 
         # Screen Dimention Parameters
         # Parameter variance acceptable
@@ -133,8 +134,8 @@ class rl_controller():
             
             # Process Reset
             if self.process.current_time == self.simulation_length:
-                self.process = process(pv0=self.pv0, out0=self.out0, sp=self.sps, pvf=self.pvf)
-                self.state = np.zeros(self.state_length).tolist()
+                self.process = process(pv0=self.process.pv[len(self.process.pv) - 1], out0=self.process.out[len(self.process.out) - 1], sp=self.sps, pvf=self.pvf)
+                #self.state = np.zeros(self.state_length).tolist()
                 self.queue_position = 0
                 self.displayed_time = np.arange(self.queue_length)
                 self.episode_complete = True
@@ -149,12 +150,14 @@ class rl_controller():
 
         # Take an action based on the REINFORCE method policy
         self.last_action = self.policy_gradients.act(self.state, self.last_action)
+        if self.last_action > 100: self.last_action = 100
+        if self.last_action < 0: o = 0
+
 
     def learn(self, pv, sp):
-        
+
         # Append the Error to the state queue and pop the trailing value
         self.state.append(pv - sp)
-        self.state.append(self.last_action)
         while len(self.state) > self.state_length: self.state.pop(0)
 
         self.errors.append(pv - sp)
@@ -162,6 +165,8 @@ class rl_controller():
 
 
         # Reward is scaled to the tolerance factor
+        err = np.abs(pv - sp)
+        self.max_error = max(self.max_error, err)
         if 0 in self.state: self.reward = 0
         else:
             sum_dderr = 0
@@ -170,12 +175,17 @@ class rl_controller():
                 sum_dderr = sum_dderr + dderr
 
             if sum_dderr == 0:  self.reward = 0
-            elif sum_dderr > 0: self.reward = -1*(np.abs(pv - sp))
-            else: self.reward = (1/np.abs(pv - sp))
+            elif sum_dderr > 0: self.reward = -err
+            else: self.reward = (1/err)
+
+        #if pv > sp: self.reward = self.reward + (self.usl - err)
+        #else: self.reward = self.reward + (self.lsl - err)
+
+        self.reward = self.reward - err - self.max_error
 
         #if np.abs(pv - sp) < 10: self.reward = 100
 
-        state = deepcopy(self.state)
+        state = deepcopy(self.errors)
         self.policy_gradients.learn(state, self.episode_complete, self.reward, self.last_action)
         if self.episode_complete: self.episode_complete = False
 
@@ -292,10 +302,10 @@ class process():
     def run(self, o):
 
         # Truncate output to applicable range and update queue
-        if o > self.prev_out: o = min(o+(o-self.prev_out), o+self.max_dout)
-        if o < self.prev_out: o = max(o+(o-self.prev_out), o-self.max_dout)
-        if o > 100: o = 100
-        if o < 0: o = 0
+        #if o > self.prev_out: o = min(o+(o-self.prev_out), o+self.max_dout)
+        #if o < self.prev_out: o = max(o+(o-self.prev_out), o-self.max_dout)
+        #if o > 100: o = 100
+        #if o < 0: o = 0
         self.out.append(o)
 
         # Calculate PV and Error, and update their queues
