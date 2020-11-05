@@ -166,7 +166,7 @@ class rl_controller():
 
         # Reward is scaled to the tolerance factor
         err = np.abs(pv - sp)
-        self.max_error = max(self.max_error, err)
+        #self.max_error = max(self.max_error, err)
         if 0 in self.state: self.reward = 0
         else:
             sum_dderr = 0
@@ -181,7 +181,7 @@ class rl_controller():
         #if pv > sp: self.reward = self.reward + (self.usl - err)
         #else: self.reward = self.reward + (self.lsl - err)
 
-        self.reward = self.reward - err - self.max_error
+        self.reward = self.reward# - err #- self.max_error
 
         #if np.abs(pv - sp) < 10: self.reward = 100
 

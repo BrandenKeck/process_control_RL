@@ -21,12 +21,12 @@ class Binomial_Policy_Actor_Critic():
         self.w = np.zeros(sl)
         
         # Initialize Neural Networks
-        self.p_net = policy_gradients_neural_net([sl, 128, 64, sl, 1], lr, True)
-        self.v_net = policy_gradients_neural_net([sl, 128, 64, sl, 1], lr, False)
+        self.p_net = policy_gradients_neural_net([sl, 128, 64, 1], lr, True)
+        self.v_net = policy_gradients_neural_net([sl, 128, 64, 1], lr, False)
 
     def act(self, state, last_action):
-        #self.p = clipped_sigmoid(np.dot(self.params, state))
-        self.p = self.p_net.evaluate(np.array(state))
+        self.p = clipped_sigmoid(np.dot(self.params, state))
+        #self.p = self.p_net.evaluate(np.array(state))
         self.e = 0.1
         next_action = last_action + (self.e * (np.random.binomial(2, self.p) - 1))
         return next_action
@@ -47,7 +47,7 @@ class Binomial_Policy_Actor_Critic():
                     #next_state_value = np.dot(next_state, self.w)
                     next_state_value = self.v_net.evaluate(np.array(next_state))
                     rewards = e.rewards[t+1]
-
+                    
                     # Calculate gradient
                     d_action = e.actions[t] - e.actions[t - 1]
                     sig = clipped_sigmoid(np.dot(self.params, state))
@@ -57,12 +57,12 @@ class Binomial_Policy_Actor_Critic():
 
                     # Update training weights
                     delta = rewards + self.df * next_state_value - state_value
-                    #self.w = self.w + self.lr_vf * (self.df ** t) * delta * d_lnpi
-                    #self.params = self.params + self.lr_p * delta * state
+                    #self.w = self.w + self.lr_vf * delta * state
+                    self.params = self.params + self.lr_p * (self.df ** t) * delta * d_lnpi
                     
                     # Backpropagate neural networks
-                    self.p_net.backpropagate(np.array(state), (self.df ** t) * delta * d_lnpi)
-                    self.v_net.backpropagate(np.array(state), delta * state)
+                    #self.p_net.backpropagate(np.array(state), (self.df ** t) * delta * d_lnpi)
+                    self.v_net.backpropagate(np.array(state), delta)
 
         # Append episode queues with information from the current State / Action / Reward
         self.episode_queue[len(self.episode_queue) - 1].states.append(next_state)
@@ -107,7 +107,7 @@ class policy_gradients_neural_net():
         for i in np.arange(len(self.layersizes) - 2):
 
             # Calculate Z (pre-activated node values for hidden layers)
-            zz = np.matmul(self.w[i], self.a[i])
+            zz = np.matmul(self.w[i], self.a[i]) + np.broadcast_to(self.b[i], (1, self.b[i].shape[0])).transpose()
             self.z.append(zz)
 
             # Calculate A (ReLU activated node values for hidden layers)
@@ -118,40 +118,38 @@ class policy_gradients_neural_net():
         self.z.append(zz)
         if self.sigmoid_output: self.a.append(self.sigmoid(zz))
         else: self.a.append(self.linear(zz))
-        return self.a[len(self.a) - 1]
+        return self.a[len(self.a) - 1][0][0]
         
     # Backpropagation / Training Function
     # Cost is calculated per the policy gradient method and passed to this function as an input
-    def backpropagate(self, X, dW):
+    def backpropagate(self, X, dL):
         
         # Evaluate the input to compute activated node values
         self.evaluate(X)
         
-        # Train the outermost layer of the network
-        self.w[len(self.w)-1] = self.w[len(self.w)-1] - self.learning_rates[len(self.w)-1] * dW
-        self.b[len(self.b)-1] = self.b[len(self.b)-1] - self.learning_rates[len(self.b)-1] * np.sum(dW, axis=1, keepdims=True)
-        
+        # Evaluate output change and combine with loss derivative
         if self.sigmoid_output: dA = self.d_sigmoid(self.z[len(self.z)-1])
         else: dA = self.d_linear(self.z[len(self.z)-1])
-        prev_dz = np.linalg.inv(dA) * dW.T
+        dz = dL * dA
+        prev_dz = dz
+        
+        # Train the outermost layer of the network
+        dw = np.matmul(dz, self.a[len(self.a)-1].T)
+        db = (np.sum(dz, axis=1, keepdims=True)).reshape((self.b[len(self.b)-1].shape[0],))
+        self.w[len(self.w)-1] = self.w[len(self.w)-1] - self.learning_rates[len(self.w)-1] * dw
+        self.b[len(self.b)-1] = self.b[len(self.b)-1] - self.learning_rates[len(self.b)-1] * db
 
         # Loop over layers backwards
         for i in np.flip(np.arange(len(self.w)-1)):
             
-            print(prev_dz.shape)
-            print(self.w[i+1].T.shape)
             dA = self.d_ReLU(self.z[i])
-            print(dA.shape)
             dz = np.matmul(self.w[i + 1].T, prev_dz) * dA
             prev_dz = dz
 
             # Calculate Weight Derivatives
-            print(dz.shape)
-            print(self.a[i].T.shape)
             dw = np.matmul(dz, self.a[i].T)
+            db = (np.sum(dz, axis=1, keepdims=True)).reshape((self.b[i].shape[0],))
             self.w[i] = self.w[i] - self.learning_rates[i] * dw
-            
-            db = np.sum(dz, axis=1, keepdims=True)
             self.b[i] = self.b[i] - self.learning_rates[i] * db
     
     def ReLU(self, x): return np.maximum(0, x)
