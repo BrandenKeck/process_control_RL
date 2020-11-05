@@ -4,7 +4,7 @@ import numpy as np
 from copy import deepcopy
 
 # Custom Learning Modules
-from continuous_policy_gradient_methods import Binomial_Policy_Actor_Critic
+from continuous_policy_gradient_methods import normal_policy_actor_critic
 
 # Define a default response function
 # Variance in slope, output, and random acceptable
@@ -15,7 +15,10 @@ def linear_output_response(pv, out, slope = 0.001):
 class rl_controller():
 
     # Initialize Simulation
-    def __init__(self, lr=1e-8, df=0.85, pv0=0, out0=50, sps=np.ones(2000), pvf=linear_output_response, lsl=0, usl=2, eql=11, sl=10, ql=500):
+    def __init__(self, lr=1e-8, df=0.85, 
+                 pv0=0, out0=50, sps=np.ones(2000), pvf=linear_output_response, 
+                 rwd_baseline=10, max_err=0.01, max_err_rwd=100, 
+                 eql=11, sl=10, ql=500):
         
         # Create a Process object and store initial settings
         self.process = process(pv0=pv0, out0=out0, sp=sps, pvf=pvf)
@@ -23,18 +26,17 @@ class rl_controller():
         self.out0 = out0
         self.sps = sps
         self.pvf = pvf
-        self.lsl = lsl
-        self.usl = usl
+        self.rwd_baseline = rwd_baseline
+        self.max_err = max_err
+        self.max_err_rwd = max_err_rwd
 
         # Create Learning Objects
-        self.policy_gradients = Binomial_Policy_Actor_Critic(lr, df, eql, sl)
-        self.errors = np.zeros(sl).tolist()
-        self.errors_length = sl
+        self.policy_gradients = normal_policy_actor_critic(lr, df, eql, sl)
         self.state = np.zeros(sl).tolist()
         self.state_length = sl
         self.reward = 0
         self.last_action = 0
-        self.max_error = 0
+        self.prev_last_action = 0
 
         # Screen Dimention Parameters
         # Parameter variance acceptable
@@ -149,9 +151,10 @@ class rl_controller():
     def act(self):
 
         # Take an action based on the REINFORCE method policy
+        self.prev_last_action = self.last_action
         self.last_action = self.policy_gradients.act(self.state, self.last_action)
         if self.last_action > 100: self.last_action = 100
-        if self.last_action < 0: o = 0
+        if self.last_action < 0: self.last_action = 0
 
 
     def learn(self, pv, sp):
@@ -160,32 +163,12 @@ class rl_controller():
         self.state.append(pv - sp)
         while len(self.state) > self.state_length: self.state.pop(0)
 
-        self.errors.append(pv - sp)
-        while len(self.errors) > self.errors_length: self.errors.pop(0)
-
-
-        # Reward is scaled to the tolerance factor
-        err = np.abs(pv - sp)
-        #self.max_error = max(self.max_error, err)
-        if 0 in self.state: self.reward = 0
-        else:
-            sum_dderr = 0
-            for i in np.arange(self.errors_length-3):
-                dderr = np.abs(self.errors[i+2]) - 2*np.abs(self.errors[i+1]) + np.abs(self.errors[i])
-                sum_dderr = sum_dderr + dderr
-
-            if sum_dderr == 0:  self.reward = 0
-            elif sum_dderr > 0: self.reward = -err
-            else: self.reward = (1/err)
-
-        #if pv > sp: self.reward = self.reward + (self.usl - err)
-        #else: self.reward = self.reward + (self.lsl - err)
-
-        self.reward = self.reward# - err #- self.max_error
-
-        #if np.abs(pv - sp) < 10: self.reward = 100
-
-        state = deepcopy(self.errors)
+        # Reward is computed based on spec limits and additional bonuses for tight control
+        self.reward = self.rwd_baseline - np.abs(pv - sp)
+        if np.abs(pv - sp) < self.max_err: self.reward = self.reward + self.max_err_rwd
+        
+        # Pass Reward information to the learning function
+        state = deepcopy(self.state)
         self.policy_gradients.learn(state, self.episode_complete, self.reward, self.last_action)
         if self.episode_complete: self.episode_complete = False
 
@@ -301,11 +284,7 @@ class process():
     #Run function
     def run(self, o):
 
-        # Truncate output to applicable range and update queue
-        #if o > self.prev_out: o = min(o+(o-self.prev_out), o+self.max_dout)
-        #if o < self.prev_out: o = max(o+(o-self.prev_out), o-self.max_dout)
-        #if o > 100: o = 100
-        #if o < 0: o = 0
+        # Append Output
         self.out.append(o)
 
         # Calculate PV and Error, and update their queues
