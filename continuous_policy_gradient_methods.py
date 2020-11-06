@@ -4,7 +4,7 @@ import numpy as np
 # Custom Actor / Critic with a Softmax Distribution Policy
 class normal_policy_actor_critic():
     
-    def __init__(self, lr, df, eql, sl):
+    def __init__(self, lr, df, eql, sl, starting_variance=100, ending_variance=1e-12):
 
         # General Learning Settings
         self.lr_mu = lr
@@ -16,11 +16,12 @@ class normal_policy_actor_critic():
 
         # Initialize Policy Objects
         self.mu = 0
-        self.var = 100
+        self.var = starting_variance
         self.mu_params = np.zeros(sl)
         self.w = np.zeros(sl)
         self.variance_annealing_factor = 0.4
-        self.variance_annealing_limit = 1e-12
+        self.variance_annealing_min = ending_variance
+        self.variance_annealing_max = starting_variance
         
         # Initialize Neural Networks
         self.v_net = policy_gradients_neural_net([sl, 128, 64, 1], lr, False)
@@ -74,79 +75,11 @@ class normal_policy_actor_critic():
     
     def anneal_variance(self):
         d_rwd = self.episode_queue[len(self.episode_queue) - 2].total_rewards - self.episode_queue[len(self.episode_queue) - 3].total_rewards
-        if d_rwd > 0:
-            if self.var > self.variance_annealing_limit: self.var = self.variance_annealing_factor*self.var
+        if d_rwd >= -self.var:
+            if self.var > self.variance_annealing_min: self.var = self.variance_annealing_factor*self.var
         else:
-            self.var = self.var/self.variance_annealing_factor
+            if self.var < self.variance_annealing_max: self.var = self.var/self.variance_annealing_factor
         print("Var: " + str(self.var))
-
-# Custom Actor / Critic with a Binomial Distribution Policy
-class binomial_policy_actor_critic():
-
-    def __init__(self, lr, df, eql, sl):
-
-        # General Learning Settings
-        self.lr_p = lr
-        self.lr_vf = lr
-        self.df = df
-        self.episode_queue_length = eql
-        self.episode_queue = [episode()]
-        self.last_state_terminal = True
-
-        # Initialize Policy Objects
-        self.p = 0
-        self.e = 0.1
-        self.params = np.zeros(sl)
-        self.w = np.zeros(sl)
-        
-        # Initialize Neural Networks
-        self.v_net = policy_gradients_neural_net([sl, 128, 64, 1], lr, False)
-
-    def act(self, state, last_action):
-        self.p = clipped_sigmoid(np.dot(self.params, state))
-        next_action = last_action + (self.e * (np.random.binomial(2, self.p) - 1))
-        return next_action
-
-    def learn(self, next_state, next_state_terminal, next_reward, last_action):
-
-        # Apply Gradient Algorithm if start of a new episode
-        if self.last_state_terminal and len(self.episode_queue) > 1:
-            self.last_state_terminal = False
-            for e in self.episode_queue:
-                for t in np.arange(1, len(e.rewards) - 1):
-
-                    # Setup calculations
-                    state = np.array(e.states[t])
-                    state_value = self.v_net.evaluate(np.array(state))
-                    next_state = np.array(e.states[t+1])
-                    next_state_value = self.v_net.evaluate(np.array(next_state))
-                    rewards = e.rewards[t+1]
-                    
-                    # Calculate gradient
-                    d_action = e.actions[t] - e.actions[t - 1]
-                    sig = clipped_sigmoid(np.dot(self.params, state))
-                    if d_action < 0: d_lnpi = -(2 * sig) * np.array(state)
-                    elif d_action == 0: d_lnpi = (1 - 2 * sig) * np.array(state)
-                    elif d_action > 0: d_lnpi = 2 * (1 - sig) * np.array(state)
-
-                    # Update training weights
-                    delta = rewards + self.df * next_state_value - state_value
-                    self.params = self.params + self.lr_p * (self.df ** t) * delta * d_lnpi
-                    
-                    # Backpropagate neural networks
-                    self.v_net.backpropagate(np.array(state), delta)
-
-        # Append episode queues with information from the current State / Action / Reward
-        self.episode_queue[len(self.episode_queue) - 1].states.append(next_state)
-        self.episode_queue[len(self.episode_queue) - 1].rewards.append(next_reward)
-        self.episode_queue[len(self.episode_queue) - 1].actions.append(last_action)
-
-        # Create a new episode if the current episode has just ended
-        if next_state_terminal:
-            self.episode_queue[len(self.episode_queue) - 1].total_rewards = sum(self.episode_queue[len(self.episode_queue) - 1].rewards)
-            self.episode_queue.append(episode())
-            self.last_state_terminal = True
-            while len(self.episode_queue) > self.episode_queue_length: self.episode_queue.pop(0)
 
 # Custom Net for the Policy Gradient Learning Method
 # All hidden layers are ReLU.  Output is either linear or sigmoid.
@@ -241,6 +174,7 @@ class episode():
         self.rewards = []
         self.actions = []
         self.total_rewards = 0
+        self.normalized_rewards = 0
 
 def clipped_sigmoid(x):
     x = np.clip(x, -100, 100)

@@ -69,7 +69,7 @@ class rl_controller():
         self.training_counter = 0
 
     # Pygame Function to Display Visual Simulations
-    def run(self):
+    def run(self, learn=True):
 
         # Initialize game
         pygame.init()
@@ -90,7 +90,7 @@ class rl_controller():
             pygame.time.delay(10)
 
             # Run simulation
-            self.simulate()
+            self.simulate(learn)
             if(len(self.process.out) == 0): continue
 
             # Draw Objects
@@ -121,7 +121,10 @@ class rl_controller():
         while self.training_counter < iterations: self.simulate(exp_factor=0.01)
         self.training_counter = 0
 
-    def simulate(self, exp_factor=-1):
+    def simulate(self, exp_factor=-1, learn=True):
+        
+            # Set Variance to Minimum if Learning is Disabled
+            if not learn: self.policy_gradients.var = self.policy_gradients.variance_annealing_min
         
             # Simulate Controller
             if exp_factor > 0: 
@@ -137,7 +140,6 @@ class rl_controller():
             # Process Reset
             if self.process.current_time == self.simulation_length:
                 self.process = process(pv0=self.process.pv[len(self.process.pv) - 1], out0=self.process.out[len(self.process.out) - 1], sp=self.sps, pvf=self.pvf)
-                #self.state = np.zeros(self.state_length).tolist()
                 self.queue_position = 0
                 self.displayed_time = np.arange(self.queue_length)
                 self.episode_complete = True
@@ -145,8 +147,8 @@ class rl_controller():
                 self.training_counter = self.training_counter + 1
                 print("Completed episodes: " + str(self.episode_counter))
             
-            # Learn via policy gradient
-            self.learn(pv, sp)
+            # Learn via policy gradient if Learning is Enabled
+            if learn: self.learn(pv, sp)
 
     def act(self):
 
@@ -164,7 +166,7 @@ class rl_controller():
         while len(self.state) > self.state_length: self.state.pop(0)
 
         # Reward is computed based on spec limits and additional bonuses for tight control
-        self.reward = self.rwd_baseline - np.abs(pv - sp)
+        self.reward = self.rwd_baseline - np.sum(np.abs(self.state))
         if np.abs(pv - sp) < self.max_err: self.reward = self.reward + self.max_err_rwd
         
         # Pass Reward information to the learning function
