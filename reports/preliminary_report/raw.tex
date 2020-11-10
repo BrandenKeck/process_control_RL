@@ -1,0 +1,149 @@
+% Defaults
+\documentclass{article}
+\usepackage{arxiv}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{amsfonts}
+\usepackage{nicefrac}
+\usepackage{microtype}
+\usepackage[ruled,vlined]{algorithm2e}
+
+% Meta Info
+\title{Preliminary Report: \\
+Single Variable Process Control with Actor-Critic Policy Gradient Methods}
+\author{
+  Branden Keck\\
+  \texttt{bmkeck62@gmail.com} \\
+}
+
+% Remove the Pre-Print Designation and Date
+\renewcommand{\undertitle}{}
+\date{}
+
+% Begin Document Contents
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This Preliminary Report will be used to formulate a single variable process control problem statement with a single control output.  The industry process control standard of proportional-integral-derivative (PID) control will be defined and a reinforcement learning approach to this problem will be proposed as an alternative solution for edge cases in which PID control tuning can be problematic.  Results of this experiment will be detailed in a subsequent report.
+\end{abstract}
+
+% Intro information
+\section{Introduction}
+The goal of this project is to explore machine-learning-based alternatives to traditional process control strategies for single variable control problems.  The modern commercial manufacturing landscape is dominated by the use of proportional-integral-derivative (PID) controllers for process control.  The mathematics of PID control were originally developed in the early 20th century, however PID control remains the most popular choice in industrial control strategy in the modern age [1].  This preference is is the result of the simplicity and proven functionality of PID controllers - namely the fact that PID control is capable of achieving high performance with only three user-defined tuning parameters.
+
+Despite the simplicity of PID design, selection of these parameters can become complicated - even impossible - in situations where the dynamics of the process are inconsistent.  Additionally, parameter tuning for PID systems can be extremely sensitive and can often require a trial-and-error approach.  These edge cases create an opportunity for machine-learning-based methods to outshine the industry standard.
+
+It is for this reason that manufacturing process control could be a fitting problem for reinforcement learning.  Major barriers to the implementation of reinforcement learning in process control include the need for an abundant amount of training data and the strict precision requirements of manufacturing process control.  In the case of training data, we will attempt to show that simulation-trained models can be developed and transferred to physical controllers without the need to physically run the process during controller training.  Additionally, stochasticity will be removed from the model during operation (following controller training) to show that a fully-trained model can control the given process deterministically and with sufficient accuracy.
+
+\section{Process Control}
+
+Three kinds of variables are always relevant in industrial process control problems.  These variables can be defined as follows:
+
+\begin{itemize}
+\item {\em Process Values (PV)} - A series of measurements which represent the actual field conditions at each point in time.
+\item {\em Setpoints (SP)} - A predefined series of values which represent the desired field conditions at each point in time.
+\item {\em Controller Outputs (OUT)} - The signal from the controller to process equipment, which drives the equipment to the appropriate control state at each point in time (i.e. pump speed, valve position, etc).
+\end{itemize}
+
+Each $PV$/$SP$ pair is associated with a process variable to be measured and controlled and each $OUT$ is associated with equipment which can be manipulated to facilitate this control.  For example, notation can be adjusted such that $PV_i$ and $SP_i$ are associated with the $i$th process variable and $OUT_j$ is associated with the $j$th piece of control equipment.  Additionally, each of these components is a function of time so notation must also indicate the timestep.  Therefore at each timestep, $t$, the $i$th process value, $i$th setpoint, and $j$th controller output should be written as $PV_i (t)$, $SP_i (t)$, and $OUT_j (t)$, respectively.
+
+In single variable process control, which will be studied in this problem statement, there is only one set of Process Values and Setpoints - those pertaining to the variable in question.  For simplicity, the problem statement will be limited to one Controller Output as well (i.e. only one relevant piece of controlling equipment).  In the field of control theory, this type of system is often labelled "SISO" (Single Input, Single Output) and is regarded as a relatively simple control problem in comparison to more complex "MIMO" (Multiple Input, Multiple Output) systems.  The primary goal of this project is to understand the capability of machine-learning-based control within the context of a SISO system with complex process dynamics.  Based on evaluation of the reinforcement learning controller performance, extension of this model to MIMO systems will be discussed further.
+
+Due to the nature of SISO systems, indices can be dropped from the $PV(t)$, $SP(t)$, and $OUT(t)$ variables because there is only one process value, one setpoint, and one controller output to be monitored.  Additionally, two extremely important relationships between these variables must be introduced.  The most important component of a process control system is the error signal, which is defined as follows:
+
+\begin{gather*}
+e(t) = SP(t) - PV(t)
+\end{gather*}
+
+The second relevant relationship is more theoretical and is often not explicitly defined.  This is the relationship between $PV(t)$ and $OUT(t)$.  As equipment is driven to the specified controller output value, $OUT$, the $PV$ value will change based on the dynamics of the process.  For the purposes of this experiment, any simulated process dynamics will be explicitly defined.  This relationship is typically unknown in practice, but can be estimated if necessary via engineering knowledge and experience with the manufacturing process.  For the purpose of this project, the process dynamics will be denoted by a function $d(\cdot)$ to be defined as follows:
+
+\begin{gather*}
+PV(t+1) = d(OUT(t))
+\end{gather*}
+
+\subsection{PID Control}
+
+PID Control is extremely popular in industry because this strategy relies only on selecting a proportional gain $K_P$, an integral gain $K_I$ and a derivative gain $K_D$ to tailor the controller to a given process (given that many software packages are available to handle the remaining mathematical and computational aspects of PID control implementation). The proportional term provides "an overall control action proportional to the error signal through the all-pass gain factor", the integral term reduces "steady-state errors through low-frequency compensation by an integrator", and the derivative term improves "transient response through high-frequency compensation by a differentiator" [1].  The PID control model can be described in terms of each gain as well as the process error via the following relationship [2]:
+
+\begin{gather*}
+u(t) = K_P [e(t)] + K_I [\int^t \! e(\tau) \, \mathrm{d}\tau] + K_D [\frac{\mathrm{d}}{\mathrm{d}t} e(t)]
+\end{gather*}
+
+In this equation, $u(t)$ is defined as the "PID control signal" [2].  In many industrial applications, the control signal is converted to a percentage of the control equipment operating range.  In this problem statement, $OUT(t)$, will represent this percentage of operating range.  (For example, if the intended operating equipment were a pump, 0 percent would represent "pump off" and 100 percent would represent "maximum pump output").  The relationship between $u(t)$ and $OUT(t)$ as well as the in-depth mathematics behind PID control are beyond the scope of this experiment, which is intended to focus on the machine learning alternatives to this paradigm.
+
+\section{Actor-Critic Reinforcement Learning}
+
+Richard S. Sutton and Andrew G. Barto's textbook, {\em Reinforcement Learning: An Introduction}, defines Reinforcement Learning as "learning what to do — how to map situations to actions — so as to maximize a numerical reward signal" [3].  A Reinforcement Learning agent is trained to select an "optimal" action (at time $t$), $A_t$, given the current state of the system, $S_t$.  The result of taking this action is a reward signal $R_{t+1}$ and a new state $S_{t+1}$.  The "optimal" action at each timestep is often defined as the action which maximizes the expected return $G$, which is a weighted summation of the rewards received at each subsequent timestep.  Therefore, the stability and performance of a reinforcement learning agent are heavily dependent on the defined reward system as well as the method by which the agent selects the actions it perceives to be "optimal".
+
+
+
+\subsection{Normal Distribution Policy Derivation}
+
+\subsection{Algorithm}
+
+\begin{algorithm}[H]
+\SetAlgoLined
+\KwResult{Write here the result }
+ initialization\;
+ \While{While condition}{
+  instructions\;
+  \eIf{condition}{
+   instructions1\;
+   instructions2\;
+   }{
+   instructions3\;
+  }
+ }
+ \caption{How to write algorithms}
+\end{algorithm}
+
+\subsection{State, Action, and Reward Structure}
+
+\subsection{List of Hyperparamters}
+Hello World
+
+\begin{table}[hbt!]
+ \caption{List of Actor-Critic Control Method Hyper Parameters}
+  \centering
+  \begin{tabular}{lll}
+    \toprule
+    Name     & Variable     & Description \\
+    \midrule
+    Learning Rate   &   $\alpha$    & XX     \\
+    Discount Factor &   $\gamma$    & XX      \\
+    \bottomrule
+  \end{tabular}
+  \label{tab:table}
+\end{table}
+
+\section{Simulation Design}
+
+\section{Summary}
+
+\begin{thebibliography}{1}
+
+\bibitem{kour2014real}
+Ang, Kiam Heong, et al.
+\newblock {\em PID Control System Analysis, Design, and Technology.}
+\newblock IEEE Transactions on Control Systems Technology, vol. 13, no. 4, 2005, pp. 559–576.
+\newblock doi:10.1109/tcst.2005.847331.
+
+\bibitem{kour2014real}
+Johnson, Michael A., and Mohammad H. Moradi.
+\newblock {\em PID Control.}
+\newblock Springer-Verlag London Limited, 2005.
+
+\bibitem{kour2014real}
+Sutton, Richard S., et al.
+\newblock {\em Reinforcement Learning: An Introduction.}
+\newblock MIT Press Ltd, 2018.
+\newblock
+
+\end{thebibliography}
+
+\end{document}
