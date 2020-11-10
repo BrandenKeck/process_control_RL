@@ -4,7 +4,7 @@ import numpy as np
 from copy import deepcopy
 
 # Custom Learning Modules
-from continuous_policy_gradient_methods import normal_policy_actor_critic
+from continuous_policy_gradient_methods import ddpg
 
 # Define a default response function
 # Variance in slope, output, and random acceptable
@@ -31,7 +31,7 @@ class rl_controller():
         self.max_err_rwd = max_err_rwd
 
         # Create Learning Objects
-        self.policy_gradients = normal_policy_actor_critic(lr, df, eql, sl)
+        self.policy_gradients = ddpg(lr=lr, df=df, eql=eql, sl=sl, al=1)
         self.state = np.zeros(sl).tolist()
         self.state_length = sl
         self.reward = 0
@@ -115,24 +115,10 @@ class rl_controller():
         while self.training_counter < iterations: self.simulate()
         self.training_counter = 0
 
-    def explore(self, iterations, exp_factor=0.01):
-        
-        # Explore for iterations
-        while self.training_counter < iterations: self.simulate(exp_factor=0.01)
-        self.training_counter = 0
-
-    def simulate(self, exp_factor=-1, learn=True):
-        
-            # Set Variance to Minimum if Learning is Disabled
-            if not learn: self.policy_gradients.var = self.policy_gradients.variance_annealing_min
+    def simulate(self, learn=True):
         
             # Simulate Controller
-            if exp_factor > 0: 
-                pv = self.process.pv[len(self.process.pv)-1]
-                sp = self.process.sp[len(self.process.pv)-1]
-                self.last_action = self.last_action + exp_factor*(sp - pv)
-            else: 
-                self.act()
+            self.act(learn)
 
             # Compute error and append the process
             pv, sp = self.process.run(self.last_action)
@@ -150,11 +136,16 @@ class rl_controller():
             # Learn via policy gradient if Learning is Enabled
             if learn: self.learn(pv, sp)
 
-    def act(self):
+    def act(self, learn):
 
-        # Take an action based on the REINFORCE method policy
+        # Take an action based on the DDPG method policy
         self.prev_last_action = self.last_action
-        self.last_action = self.policy_gradients.act(self.state)
+        if learn: 
+            self.last_action = self.policy_gradients.stochastic_action(self.state)
+        else: 
+            self.last_action = self.policy_gradients.deterministic_action(self.state)
+            
+        # Clip Actions Based on Allowable Range
         if self.last_action > 100: self.last_action = 100
         if self.last_action < 0: self.last_action = 0
 

@@ -13,8 +13,8 @@ class ornstein_uhlenbeck():
         self.value = self.value + self.theta*self.value*dt + self.sigma*np.sqrt(dt)*np.random.normal()
         return self.value
 
-iterations = 150
-timesteps = 8000
+iterations = 100
+timesteps = 1000
 for i in np.arange(iterations):
     ou = ornstein_uhlenbeck(0, 0.8)
     T = []
