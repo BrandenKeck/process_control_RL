@@ -154,7 +154,7 @@ class rl_controller():
 
         # Take an action based on the REINFORCE method policy
         self.prev_last_action = self.last_action
-        self.last_action = self.policy_gradients.act(self.state, self.last_action)
+        self.last_action = self.policy_gradients.act(self.state)
         if self.last_action > 100: self.last_action = 100
         if self.last_action < 0: self.last_action = 0
 
