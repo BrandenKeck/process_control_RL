@@ -13,20 +13,20 @@ for i in np.arange(4):
 
 #setpoints = np.arange(500)/20 
 my_controller = rl_controller(
-    pv0 = 22.5,
+    pv0 = 0,
     out0 = 50,
     sps=setpoints,
-    rwd_baseline = 10,
-    max_err = 0.1,
-    max_err_rwd = 1000,
+    rwd_baseline = 0,
+    max_err = 0.01,
+    max_err_rwd = 1,
     #pvf=cooling_valve,
-    lr=0.00000001,
+    lr=1e-8,
     df=1,
-    eql=101, sl=3,
+    eql=5, sl=10,
     ql = 300
 )
 
 #my_controller = rl_controller()
 #my_controller.explore(10, exp_factor=0.01)
-my_controller.train(100)
+my_controller.train(10)
 my_controller.run()
