@@ -23,7 +23,7 @@ class normal_policy_actor_critic():
         self.variance_annealing_max = starting_variance
         
         # Initialize Neural Networks
-        self.v_net = policy_gradients_neural_net([sl, 128, 64, 1], 1e-6, False)
+        self.v_net = policy_gradients_neural_net([sl, 128, 64, 1], lr, False)
 
     def act(self, state, last_action):
         self.mu = 100*clipped_sigmoid(np.dot(self.mu_params, state))
@@ -53,10 +53,10 @@ class normal_policy_actor_critic():
 
                     # Update training weights
                     delta = rewards + self.df * next_state_value - state_value
-                    print("V: " + str(state_value))
-                    print("R: " + str(rewards))
-                    print("D: " + str(delta))
-                    print("")
+                    #print("V: " + str(state_value))
+                    #print("R: " + str(rewards))
+                    #print("D: " + str(delta))
+                    #print("")
                     self.mu_params = self.mu_params + self.lr_mu * (self.df ** t) * delta * d_lnpi_mu
                     
                     # Backpropagate neural networks
@@ -72,9 +72,13 @@ class normal_policy_actor_critic():
         # Create a new episode if the current episode has just ended
         if next_state_terminal:
             self.episode_queue[len(self.episode_queue) - 1].total_rewards = sum(self.episode_queue[len(self.episode_queue) - 1].rewards)
-            self.episode_queue.append(episode())
             self.last_state_terminal = True
-            while len(self.episode_queue) > self.episode_queue_length: self.episode_queue.pop(0)
+            while len(self.episode_queue) > self.episode_queue_length:
+                total_rewards = []
+                for i in np.arange(len(self.episode_queue) - 1):
+                    total_rewards.append(self.episode_queue[i].total_rewards)
+                self.episode_queue.pop(total_rewards.index(min(total_rewards)))
+            self.episode_queue.append(episode())
     
     def anneal_variance(self):
         d_rwd = self.episode_queue[len(self.episode_queue) - 2].total_rewards - self.episode_queue[len(self.episode_queue) - 3].total_rewards
@@ -82,7 +86,6 @@ class normal_policy_actor_critic():
             if self.var > self.variance_annealing_min: self.var = self.variance_annealing_factor*self.var
         else:
             if self.var < self.variance_annealing_max: self.var = self.var/self.variance_annealing_factor
-        print("Var: " + str(self.var))
 
 
 # Custom Net for the Policy Gradient Learning Method
