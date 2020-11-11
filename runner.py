@@ -15,17 +15,17 @@ for i in np.arange(4):
 my_controller = rl_controller(
     pv0 = 0,
     out0 = 50,
-    sps=setpoints,#np.ones(200),
-    rwd_baseline = 20,
+    sps=np.ones(400),
+    rwd_baseline = 0,
     max_err = 0.1,
     max_err_rwd = 1000,
     #pvf=cooling_valve,
     lr=1e-8,
     df=1,
     eql=5, sl=10,
-    ql = 200
+    ql = 400
 )
 
 #my_controller.explore(10, exp_factor=0.01)
-my_controller.train(50)
-my_controller.run(learn=False)
+#my_controller.train(50)
+my_controller.run(learn=True)

@@ -157,7 +157,7 @@ class rl_controller():
         while len(self.state) > self.state_length: self.state.pop(0)
 
         # Reward is computed based on spec limits and additional bonuses for tight control
-        self.reward = self.rwd_baseline - np.sum(np.abs(self.state))
+        self.reward = self.rwd_baseline - np.sum(np.abs(pv - sp))
         if np.abs(pv - sp) < self.max_err: self.reward = self.reward + self.max_err_rwd
         
         # Pass Reward information to the learning function
