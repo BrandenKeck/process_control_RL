@@ -69,7 +69,7 @@ class rl_controller():
         self.training_counter = 0
 
     # Pygame Function to Display Visual Simulations
-    def run(self):
+    def run(self, ornstein_uhlenbeck=False, learn=True):
 
         # Initialize game
         pygame.init()
@@ -90,7 +90,7 @@ class rl_controller():
             pygame.time.delay(10)
 
             # Run simulation
-            self.simulate()
+            self.simulate(ornstein_uhlenbeck, learn)
             if(len(self.process.out) == 0): continue
 
             # Draw Objects
@@ -109,30 +109,23 @@ class rl_controller():
         # End the Game
         pygame.quit()
 
-    def train(self, iterations):
+    def train(self, iterations, ornstein_uhlenbeck=True, learn=True):
         
         # Train for iterations
-        while self.training_counter < iterations: self.simulate()
+        while self.training_counter < iterations: self.simulate(ornstein_uhlenbeck, learn)
         self.training_counter = 0
 
-    def explore(self, iterations, exp_factor=0.01):
+    def simulate(self, ornstein_uhlenbeck=False, learn=True):
         
-        # Explore for iterations
-        while self.training_counter < iterations: self.simulate(exp_factor=0.01)
-        self.training_counter = 0
-
-    def simulate(self, exp_factor=-1):
-        
-            # Simulate Controller
-            if exp_factor > 0: 
-                pv = self.process.pv[len(self.process.pv)-1]
-                sp = self.process.sp[len(self.process.pv)-1]
-                self.last_action = self.last_action + exp_factor*(sp - pv)
-            else: 
-                self.act()
+            # Act function
+            self.act(ornstein_uhlenbeck, learn)
 
             # Compute error and append the process
             pv, sp = self.process.run(self.last_action)
+            
+            # Append the Error to the state queue and pop the trailing value
+            self.state.append(pv - sp)
+            while len(self.state) > self.state_length: self.state.pop(0)
             
             # Process Reset
             if self.process.current_time == self.simulation_length:
@@ -146,31 +139,36 @@ class rl_controller():
                 print("Completed episodes: " + str(self.episode_counter))
             
             # Learn via policy gradient
-            self.learn(pv, sp)
+            if learn: self.learn(pv, sp)
 
-    def act(self):
+    def act(self, ou, learn):
 
         # Take an action based on the REINFORCE method policy
         self.prev_last_action = self.last_action
-        self.last_action = self.policy_gradients.act(self.state, self.last_action)
+        self.last_action = self.policy_gradients.act(self.state, ou, learn)
         if self.last_action > 100: self.last_action = 100
         if self.last_action < 0: self.last_action = 0
 
 
     def learn(self, pv, sp):
 
-        # Append the Error to the state queue and pop the trailing value
-        self.state.append(pv - sp)
-        while len(self.state) > self.state_length: self.state.pop(0)
-
         # Reward is computed based on spec limits and additional bonuses for tight control
         self.reward = self.rwd_baseline - np.abs(pv - sp)
+        #self.reward = self.rwd_baseline/np.abs(pv - sp)
         if np.abs(pv - sp) < self.max_err: self.reward = self.reward + self.max_err_rwd
         
         # Pass Reward information to the learning function
         state = deepcopy(self.state)
         self.policy_gradients.learn(state, self.episode_complete, self.reward, self.last_action)
         if self.episode_complete: self.episode_complete = False
+    
+    def hard_reset(self):
+        self.process = process(pv0=self.pv0, out0=self.out0, sp=self.sps, pvf=self.pvf)
+        self.state = np.zeros(self.state_length).tolist()
+        self.queue_position = 0
+        self.displayed_time = np.arange(self.queue_length)
+        self.episode_complete = False
+        self.training_counter = 0
 
     def draw_window(self, window):
 
@@ -222,7 +220,7 @@ class rl_controller():
 
         # Draw Simulation Title Text
         # Drone control using reinforcement learning
-        title_txt = fonts[0].render("b-Control using Reinforcement Learning v0.0.3", True, (0, 0, 0))
+        title_txt = fonts[0].render("Process Control with Reinforcement Learning v0.0.5", True, (0, 0, 0))
         window.blit(title_txt, dest=((self.w - self.plot_w)/2, (self.h - self.plot_h)/2 - 60))
         
         # Draw Vertical Axis

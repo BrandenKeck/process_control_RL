@@ -1,10 +1,11 @@
 # Import external libraries
 import numpy as np
+from keras_neural_network import neural_network
 
 # Custom Actor / Critic with a Softmax Distribution Policy
 class normal_policy_actor_critic():
     
-    def __init__(self, lr, df, eql, sl, starting_variance=20, ending_variance=1e-12):
+    def __init__(self, lr, df, eql, sl, starting_variance=20, ending_variance=1e-12, ou_variance=1):
 
         # General Learning Settings
         self.lr_mu = lr
@@ -16,18 +17,31 @@ class normal_policy_actor_critic():
         # Initialize Policy Objects
         self.mu = 0
         self.var = starting_variance
-        self.mu_params = np.zeros(sl)
-        self.w = np.zeros(sl)
+        self.actor_params = np.zeros(sl)
         self.variance_annealing_factor = 0.4
         self.variance_annealing_min = ending_variance
         self.variance_annealing_max = starting_variance
+        self.ou_process = ornstein_uhlenbeck_process(0, ou_variance)
         
         # Initialize Neural Networks
-        self.v_net = policy_gradients_neural_net([sl, 128, 64, 1], lr, False)
+        self.critic_network = critic_neural_network([sl, 128, 64, 32, 1], 1e-5, False)
 
-    def act(self, state, last_action):
-        self.mu = 100*clipped_sigmoid(np.dot(self.mu_params, state))
-        next_action = np.random.normal(self.mu, self.var)
+    def act(self, state, ornstein_uhlenbeck, learn):
+        
+        if ornstein_uhlenbeck:
+            N = self.ou_process.simulate()
+            self.mu = 100*clipped_sigmoid(np.dot(self.actor_params, state)) + N
+            if learn:
+                next_action = np.random.normal(self.mu, self.var)
+            else:
+                next_action = np.random.normal(self.mu, self.variance_annealing_min)
+        else:
+            self.mu = 100*clipped_sigmoid(np.dot(self.actor_params, state))
+            if learn:
+                next_action = np.random.normal(self.mu, self.var)
+            else:
+                next_action = np.random.normal(self.mu, self.variance_annealing_min)
+        
         return next_action
 
     def learn(self, next_state, next_state_terminal, next_reward, last_action):
@@ -40,27 +54,29 @@ class normal_policy_actor_critic():
 
                     # Setup calculations
                     state = np.array(e.states[t])
-                    state_value = self.v_net.evaluate(np.array(state))
+                    state_value = self.critic_network.evaluate(np.array(state))
                     next_state = np.array(e.states[t+1])
-                    next_state_value = self.v_net.evaluate(np.array(next_state))
+                    next_state_value = self.critic_network.evaluate(np.array(next_state))
                     rewards = e.rewards[t+1]
                     
                     # Calculate gradient
                     action = e.actions[t]
-                    sig = clipped_sigmoid(np.dot(self.mu_params, state))
+                    sig = clipped_sigmoid(np.dot(self.actor_params, state))
                     mu = 100*sig
                     d_lnpi_mu = 100*(action-mu/self.var**2)*(sig)*(1-sig)*state
 
                     # Update training weights
-                    delta = rewards + self.df * next_state_value - state_value
+                    Y = rewards + self.df * next_state_value
+                    Y_hat = state_value
+                    delta = Y - Y_hat
                     #print("V: " + str(state_value))
                     #print("R: " + str(rewards))
-                    #print("D: " + str(delta))
+                    print("D: " + str(delta))
                     #print("")
-                    self.mu_params = self.mu_params + self.lr_mu * (self.df ** t) * delta * d_lnpi_mu
+                    self.actor_params = self.actor_params + self.lr_mu * (self.df ** t) * delta * d_lnpi_mu
                     
                     # Backpropagate neural networks
-                    self.v_net.backpropagate(np.array(state), delta)
+                    self.critic_network.backpropagate(np.array(state), Y, Y_hat)
             
             self.anneal_variance()
 
@@ -71,11 +87,12 @@ class normal_policy_actor_critic():
 
         # Create a new episode if the current episode has just ended
         if next_state_terminal:
-            self.episode_queue[len(self.episode_queue) - 1].total_rewards = sum(self.episode_queue[len(self.episode_queue) - 1].rewards)
             self.last_state_terminal = True
+            self.ou_process.value = 0
+            self.episode_queue[len(self.episode_queue) - 1].total_rewards = sum(self.episode_queue[len(self.episode_queue) - 1].rewards)
             while len(self.episode_queue) > self.episode_queue_length:
                 total_rewards = []
-                for i in np.arange(len(self.episode_queue) - 1):
+                for i in np.arange(len(self.episode_queue) - 2):
                     total_rewards.append(self.episode_queue[i].total_rewards)
                 self.episode_queue.pop(total_rewards.index(min(total_rewards)))
             self.episode_queue.append(episode())
@@ -91,14 +108,14 @@ class normal_policy_actor_critic():
 # Custom Net for the Policy Gradient Learning Method
 # All hidden layers are ReLU.  Output is either linear or sigmoid.
 # This is controlled by self.sigmoid_output
-class policy_gradients_neural_net():
+class critic_neural_network():
     
     def __init__(self, layersizes, learning_rate=0.01, sigmoid=True):
         
         # Configurable Settings
         self.layersizes = np.array([int(i) for i in layersizes])
         self.learning_rates = learning_rate * np.ones(len(self.layersizes)-1)
-        self.sigmoid_output = sigmoid
+        self.huber_cost_delta = 0.01
 
         # Initialize Node Value and Weight Arrays
         self.z = []
@@ -129,20 +146,20 @@ class policy_gradients_neural_net():
         # Compute the output layer pre-activated node and activated node values
         zz = np.matmul(self.w[len(self.w) - 1], self.a[len(self.a) - 1])
         self.z.append(zz)
-        if self.sigmoid_output: self.a.append(self.sigmoid(zz))
-        else: self.a.append(self.linear(zz))
+        self.a.append(self.linear(zz))
         return self.a[len(self.a) - 1][0][0]
         
     # Backpropagation / Training Function
     # Cost is calculated per the policy gradient method and passed to this function as an input
-    def backpropagate(self, X, dL):
+    def backpropagate(self, X, Y, Y_hat):
         
         # Evaluate the input to compute activated node values
         self.evaluate(X)
         
         # Evaluate output change and combine with loss derivative
-        if self.sigmoid_output: dA = self.d_sigmoid(self.z[len(self.z)-1])
-        else: dA = self.d_linear(self.z[len(self.z)-1])
+        dL = self.d_huber(Y, Y_hat, self.huber_cost_delta)
+        dA = self.d_linear(self.z[len(self.z)-1])
+        #print("dL/dA: " + str(dL))
         dz = dL * dA
         prev_dz = dz
         
@@ -166,12 +183,24 @@ class policy_gradients_neural_net():
             self.b[i] = self.b[i] - self.learning_rates[i] * db
     
     def ReLU(self, x): return np.maximum(0, x)
-    def sigmoid(self, x): return 1/(1+np.exp(-1*x.astype(np.float32)))
     def linear(self, x): return x
     def d_ReLU(self, x): return np.where(x > 0, 1.0, 0)
     def d_linear(self, x): return np.ones(x.shape)
-    def d_sigmoid(self, x): return self.sigmoid(x)*(1 - self.sigmoid(x))
+    def d_huber(self, Y, Y_hat, delta=1):
+        if np.linalg.norm(Y_hat - Y) < delta: return Y_hat - Y
+        else: return delta * np.sign(Y_hat - Y)
 
+# Define an Ornstein-Uhlenbeck process for exploration
+class ornstein_uhlenbeck_process():
+    
+    def __init__(self, theta, sigma):
+        self.theta = theta
+        self.sigma = sigma
+        self.value = 0
+        
+    def simulate(self, dt=1):
+        self.value = self.value + self.theta*self.value*dt + self.sigma*np.sqrt(dt)*np.random.normal()
+        return self.value
 
 # Episode Class for Organization of Data
 class episode():

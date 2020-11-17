@@ -2,7 +2,7 @@ import numpy as np
 from process_control import rl_controller
 
 def cooling_valve(pv, out):
-    return pv - (out/100) + 1 + np.random.normal(0, 0.01)
+    return pv - (out/200) + 0.1 #+ np.random.normal(0, 0.01)
 
 flipper = 1
 setpoints = flipper*np.ones(200)
@@ -21,11 +21,15 @@ my_controller = rl_controller(
     #pvf=cooling_valve,
     lr=1e-8,
     df=1,
-    eql=4, sl=10,
+    eql=6, sl=10,
     ql = 300
 )
 
 #my_controller = rl_controller()
 #my_controller.explore(10, exp_factor=0.01)
-my_controller.train(10)
-my_controller.run()
+
+#my_controller.train(10, ou=True, learn=True)
+#my_controller.hard_reset()
+my_controller.train(10, ornstein_uhlenbeck=False, learn=True)
+
+my_controller.run(ornstein_uhlenbeck=False, learn=False)
