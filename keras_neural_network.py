@@ -4,7 +4,13 @@ from tensorflow import keras
 
 class neural_network():
     
-    def __init__(self, layersizes, activations, learning_rate=0.01, optimizer='adam', losses='huber', huber_delta = 1.0):
+    def __init__(self, layersizes, activations, learning_rate=0.01, 
+                 optimizer='adam', losses='huber', huber_delta = 1.0,
+                 training_epochs = 1, steps_per_epoch = None):
+        
+        # Store Training Information
+        self.training_epochs = training_epochs
+        self.steps_per_epoch = steps_per_epoch
         
         # Establish a Model
         self.model = tf.keras.Sequential([keras.Input(shape=(layersizes[0],))])
@@ -27,12 +33,13 @@ class neural_network():
               metrics=['accuracy'])
     
     # Train the Network        
-    def train_network(self, X, Y, num_epochs, num_steps):
+    def train_network(self, X, Y):
         dataset = tf.data.Dataset.from_tensor_slices((X, Y)).shuffle(len(Y)).batch(len(Y))
         self.model.fit(
-            dataset.repeat(), 
-            epochs=num_epochs, 
-            steps_per_epoch=num_steps,
+            dataset, 
+            epochs=self.training_epochs, 
+            steps_per_epoch=self.steps_per_epoch,
+            verbose=False
         )
     
     # Predict Network Outputs

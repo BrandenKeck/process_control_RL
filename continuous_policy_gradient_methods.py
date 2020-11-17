@@ -5,7 +5,9 @@ from keras_neural_network import neural_network
 # Custom Actor / Critic with a Softmax Distribution Policy
 class normal_policy_actor_critic():
     
-    def __init__(self, lr, df, eql, sl, starting_variance=20, ending_variance=1e-12, ou_variance=1):
+    def __init__(self, lr, df, eql, sl,
+                 critic_training_epochs = 10, critic_steps_per_epoch = None,
+                 starting_variance=20, ending_variance=1e-12, ornstein_uhlenbeck_variance=1):
 
         # General Learning Settings
         self.lr_mu = lr
@@ -21,13 +23,16 @@ class normal_policy_actor_critic():
         self.variance_annealing_factor = 0.4
         self.variance_annealing_min = ending_variance
         self.variance_annealing_max = starting_variance
-        self.ou_process = ornstein_uhlenbeck_process(0, ou_variance)
+        self.ou_process = ornstein_uhlenbeck_process(0, ornstein_uhlenbeck_variance)
         
         # Initialize Neural Networks
-        self.critic_network = critic_neural_network([sl, 128, 64, 32, 1], 1e-5, False)
+        self.critic_network = neural_network(layersizes = [sl, 128, 64, 1],
+                                             activations = ['relu', 'relu', 'linear'],
+                                             learning_rate = 1e-3,
+                                             training_epochs = critic_training_epochs,
+                                             steps_per_epoch = critic_steps_per_epoch)
 
     def act(self, state, ornstein_uhlenbeck, learn):
-        
         if ornstein_uhlenbeck:
             N = self.ou_process.simulate()
             self.mu = 100*clipped_sigmoid(np.dot(self.actor_params, state)) + N
@@ -48,35 +53,36 @@ class normal_policy_actor_critic():
 
         # Apply Gradient Algorithm if start of a new episode
         if self.last_state_terminal and len(self.episode_queue) > 1:
+            
             self.last_state_terminal = False
-            for e in self.episode_queue:
+            for i in np.arange(len(self.episode_queue)-1):
+                
+                critic_labels = []
+                e = self.episode_queue[i]
                 for t in np.arange(1, len(e.rewards) - 1):
 
                     # Setup calculations
                     state = np.array(e.states[t])
-                    state_value = self.critic_network.evaluate(np.array(state))
+                    state_value = self.critic_network.predict_network(np.array(state).reshape((1, -1)), np.array([0]).reshape((1, 1))).reshape((-1,))
                     next_state = np.array(e.states[t+1])
-                    next_state_value = self.critic_network.evaluate(np.array(next_state))
+                    next_state_value = self.critic_network.predict_network(np.array(next_state).reshape((1, -1)), np.array([0]).reshape((1, 1))).reshape((-1,))
                     rewards = e.rewards[t+1]
                     
-                    # Calculate gradient
+                    # Calculate and Update actor gradient
                     action = e.actions[t]
+                    delta = rewards + self.df * next_state_value - state_value
                     sig = clipped_sigmoid(np.dot(self.actor_params, state))
-                    mu = 100*sig
-                    d_lnpi_mu = 100*(action-mu/self.var**2)*(sig)*(1-sig)*state
-
-                    # Update training weights
-                    Y = rewards + self.df * next_state_value
-                    Y_hat = state_value
-                    delta = Y - Y_hat
-                    #print("V: " + str(state_value))
-                    #print("R: " + str(rewards))
-                    print("D: " + str(delta))
-                    #print("")
+                    d_lnpi_mu = 100*(action-100*sig/self.var**2)*(sig)*(1-sig)*state
                     self.actor_params = self.actor_params + self.lr_mu * (self.df ** t) * delta * d_lnpi_mu
                     
-                    # Backpropagate neural networks
-                    self.critic_network.backpropagate(np.array(state), Y, Y_hat)
+                    # Store Neural Network Training Data
+                    critic_labels.append(rewards + self.df * next_state_value)
+                    
+                # Backpropagate neural networks wi
+                T = len(e.rewards) - 2
+                X = np.array(e.states[1:(len(e.rewards)-1)]).reshape((T,-1))
+                Y = np.array(critic_labels).reshape((T,-1))
+                self.critic_network.train_network(X, Y)
             
             self.anneal_variance()
 
@@ -103,92 +109,6 @@ class normal_policy_actor_critic():
             if self.var > self.variance_annealing_min: self.var = self.variance_annealing_factor*self.var
         else:
             if self.var < self.variance_annealing_max: self.var = self.var/self.variance_annealing_factor
-
-
-# Custom Net for the Policy Gradient Learning Method
-# All hidden layers are ReLU.  Output is either linear or sigmoid.
-# This is controlled by self.sigmoid_output
-class critic_neural_network():
-    
-    def __init__(self, layersizes, learning_rate=0.01, sigmoid=True):
-        
-        # Configurable Settings
-        self.layersizes = np.array([int(i) for i in layersizes])
-        self.learning_rates = learning_rate * np.ones(len(self.layersizes)-1)
-        self.huber_cost_delta = 0.01
-
-        # Initialize Node Value and Weight Arrays
-        self.z = []
-        self.a = []
-        self.w = []
-        self.b = []
-        for i in np.arange(1, len(self.layersizes)):
-            self.w.append(0.01 * np.random.randn(self.layersizes[i], self.layersizes[i-1]))
-            self.b.append(np.zeros(self.layersizes[i]))
-            
-    # Forward calculation of the output
-    def evaluate(self, X):
-        
-        # Set Input Data to Initially Activated Layer
-        self.a = [X.reshape(-1, 1)]
-        self.z = []
-
-        # Loop over all layers
-        for i in np.arange(len(self.layersizes) - 2):
-
-            # Calculate Z (pre-activated node values for hidden layers)
-            zz = np.matmul(self.w[i], self.a[i]) + np.broadcast_to(self.b[i], (1, self.b[i].shape[0])).transpose()
-            self.z.append(zz)
-
-            # Calculate A (ReLU activated node values for hidden layers)
-            self.a.append(self.ReLU(zz))
-        
-        # Compute the output layer pre-activated node and activated node values
-        zz = np.matmul(self.w[len(self.w) - 1], self.a[len(self.a) - 1])
-        self.z.append(zz)
-        self.a.append(self.linear(zz))
-        return self.a[len(self.a) - 1][0][0]
-        
-    # Backpropagation / Training Function
-    # Cost is calculated per the policy gradient method and passed to this function as an input
-    def backpropagate(self, X, Y, Y_hat):
-        
-        # Evaluate the input to compute activated node values
-        self.evaluate(X)
-        
-        # Evaluate output change and combine with loss derivative
-        dL = self.d_huber(Y, Y_hat, self.huber_cost_delta)
-        dA = self.d_linear(self.z[len(self.z)-1])
-        #print("dL/dA: " + str(dL))
-        dz = dL * dA
-        prev_dz = dz
-        
-        # Train the outermost layer of the network
-        dw = np.matmul(dz, self.a[len(self.a)-1].T)
-        db = (np.sum(dz, axis=1, keepdims=True)).reshape((self.b[len(self.b)-1].shape[0],))
-        self.w[len(self.w)-1] = self.w[len(self.w)-1] - self.learning_rates[len(self.w)-1] * dw
-        self.b[len(self.b)-1] = self.b[len(self.b)-1] - self.learning_rates[len(self.b)-1] * db
-
-        # Loop over layers backwards
-        for i in np.flip(np.arange(len(self.w)-1)):
-            
-            dA = self.d_ReLU(self.z[i])
-            dz = np.matmul(self.w[i + 1].T, prev_dz) * dA
-            prev_dz = dz
-
-            # Calculate Weight Derivatives
-            dw = np.matmul(dz, self.a[i].T)
-            db = (np.sum(dz, axis=1, keepdims=True)).reshape((self.b[i].shape[0],))
-            self.w[i] = self.w[i] - self.learning_rates[i] * dw
-            self.b[i] = self.b[i] - self.learning_rates[i] * db
-    
-    def ReLU(self, x): return np.maximum(0, x)
-    def linear(self, x): return x
-    def d_ReLU(self, x): return np.where(x > 0, 1.0, 0)
-    def d_linear(self, x): return np.ones(x.shape)
-    def d_huber(self, Y, Y_hat, delta=1):
-        if np.linalg.norm(Y_hat - Y) < delta: return Y_hat - Y
-        else: return delta * np.sign(Y_hat - Y)
 
 # Define an Ornstein-Uhlenbeck process for exploration
 class ornstein_uhlenbeck_process():

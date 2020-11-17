@@ -96,7 +96,7 @@ class rl_controller():
             # Draw Objects
             self.draw_window(window)
             self.draw_process(window, fonts)
-            self.draw_axes_and_text(window, fonts)
+            self.draw_axes_and_text(window, fonts, learn)
 
             # Update Display
             pygame.display.update()
@@ -216,7 +216,7 @@ class rl_controller():
         out_txt = fonts[2].render(str(round(out[out_rescaled.size - 1],3)), True, (10, 10, 230))
         window.blit(out_txt, dest=(self.x_positions[out_rescaled.size - 2] + 10, out_rescaled[out_rescaled.size - 2] - 6))
 
-    def draw_axes_and_text(self, window, fonts):
+    def draw_axes_and_text(self, window, fonts, learn):
 
         # Draw Simulation Title Text
         # Drone control using reinforcement learning
@@ -253,10 +253,13 @@ class rl_controller():
                     tickmark_txt = fonts[1].render(str(val), True, (0, 0, 0))
                     window.blit(tickmark_txt, dest=(xpos, self.scale_zero_position + 10))
 
-        # Draw Simulation Details Text
-        rwd_txt = fonts[1].render("Current Reward: " + str(self.reward), True, (0, 0, 0))
+        # Draw Current Rewards Text
+        if learn: rwd_txt = fonts[1].render("Current Reward: " + str(round(self.reward,3)), True, (0, 0, 0))
+        else: rwd_txt = fonts[1].render("Current Reward: <<Not Learning>>", True, (0, 0, 0))
         window.blit(rwd_txt, dest=((self.w - self.plot_w)/2 + 10, self.h - (self.h - self.plot_h)/2 + 30))
-        la_txt = fonts[1].render("Last Action: " + str(self.last_action), True, (0, 0, 0))
+        
+        # Draw Last Action Text
+        la_txt = fonts[1].render("Last Action: " + str(round(self.last_action,2)), True, (0, 0, 0))
         window.blit(la_txt, dest=((self.w - self.plot_w)/2 + 10, self.h - (self.h - self.plot_h)/2 + 60))
 
 

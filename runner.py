@@ -18,18 +18,31 @@ my_controller = rl_controller(
     rwd_baseline = 0,
     max_err = 0.01,
     max_err_rwd = 1,
-    #pvf=cooling_valve,
+    pvf=cooling_valve,
     lr=1e-8,
     df=1,
     eql=6, sl=10,
     ql = 300
 )
 
-#my_controller = rl_controller()
-#my_controller.explore(10, exp_factor=0.01)
-
-#my_controller.train(10, ou=True, learn=True)
+#my_controller.train(10, ornstein_uhlenbeck=True, learn=True)
 #my_controller.hard_reset()
-my_controller.train(10, ornstein_uhlenbeck=False, learn=True)
+#my_controller.train(10, ornstein_uhlenbeck=False, learn=True)
 
-my_controller.run(ornstein_uhlenbeck=False, learn=False)
+'''
+my_controller.train(1, ornstein_uhlenbeck=True, learn=True)
+my_controller.hard_reset()
+my_controller.train(2, ornstein_uhlenbeck=True, learn=True)
+my_controller.hard_reset()
+my_controller.train(3, ornstein_uhlenbeck=True, learn=True)
+my_controller.hard_reset()
+my_controller.train(4, ornstein_uhlenbeck=True, learn=True)
+my_controller.hard_reset()
+my_controller.train(5, ornstein_uhlenbeck=True, learn=True)
+my_controller.hard_reset()
+my_controller.train(10, ornstein_uhlenbeck=False, learn=True)
+my_controller.hard_reset()
+'''
+
+my_controller.train(5, ornstein_uhlenbeck=True, learn=True)
+my_controller.run(ornstein_uhlenbeck=False, learn=True)
