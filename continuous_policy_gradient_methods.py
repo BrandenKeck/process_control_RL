@@ -1,14 +1,16 @@
 # Import external libraries
 import numpy as np
+from keras_neural_network import neural_network
 
 # Custom Actor / Critic with a Softmax Distribution Policy
 class normal_policy_actor_critic():
     
-    def __init__(self, lr, df, eql, sl, starting_variance=100, ending_variance=1e-12):
+    def __init__(self, lr, df, eql, sl,
+                 critic_training_epochs = 10, critic_steps_per_epoch = None,
+                 starting_variance=20, ending_variance=1e-12, ornstein_uhlenbeck_variance=1):
 
         # General Learning Settings
         self.lr_mu = lr
-        self.lr_vf = lr
         self.df = df
         self.episode_queue_length = eql
         self.episode_queue = [episode()]
@@ -17,47 +19,70 @@ class normal_policy_actor_critic():
         # Initialize Policy Objects
         self.mu = 0
         self.var = starting_variance
-        self.mu_params = np.zeros(sl)
-        self.w = np.zeros(sl)
+        self.actor_params = np.zeros(sl)
         self.variance_annealing_factor = 0.4
         self.variance_annealing_min = ending_variance
         self.variance_annealing_max = starting_variance
+        self.ou_process = ornstein_uhlenbeck_process(0, ornstein_uhlenbeck_variance)
         
         # Initialize Neural Networks
-        self.v_net = policy_gradients_neural_net([sl, 128, 64, 1], lr, False)
+        self.critic_network = neural_network(layersizes = [sl, 128, 64, 1],
+                                             activations = ['relu', 'relu', 'linear'],
+                                             learning_rate = 1e-3,
+                                             training_epochs = critic_training_epochs,
+                                             steps_per_epoch = critic_steps_per_epoch)
 
-    def act(self, state, last_action):
-        self.mu = 100*clipped_sigmoid(np.dot(self.mu_params, state))
-        next_action = np.random.normal(self.mu, self.var)
+    def act(self, state, ornstein_uhlenbeck, learn):
+        if ornstein_uhlenbeck:
+            N = self.ou_process.simulate()
+            self.mu = 100*clipped_sigmoid(np.dot(self.actor_params, state)) + N
+            if learn:
+                next_action = np.random.normal(self.mu, self.var)
+            else:
+                next_action = np.random.normal(self.mu, self.variance_annealing_min)
+        else:
+            self.mu = 100*clipped_sigmoid(np.dot(self.actor_params, state))
+            if learn:
+                next_action = np.random.normal(self.mu, self.var)
+            else:
+                next_action = np.random.normal(self.mu, self.variance_annealing_min)
+        
         return next_action
 
     def learn(self, next_state, next_state_terminal, next_reward, last_action):
 
         # Apply Gradient Algorithm if start of a new episode
         if self.last_state_terminal and len(self.episode_queue) > 1:
+            
             self.last_state_terminal = False
-            for e in self.episode_queue:
+            for i in np.arange(len(self.episode_queue)-1):
+                
+                critic_labels = []
+                e = self.episode_queue[i]
                 for t in np.arange(1, len(e.rewards) - 1):
 
                     # Setup calculations
                     state = np.array(e.states[t])
-                    state_value = self.v_net.evaluate(np.array(state))
+                    state_value = self.critic_network.predict_network(np.array(state).reshape((1, -1)), np.array([0]).reshape((1, 1))).reshape((-1,))
                     next_state = np.array(e.states[t+1])
-                    next_state_value = self.v_net.evaluate(np.array(next_state))
+                    next_state_value = self.critic_network.predict_network(np.array(next_state).reshape((1, -1)), np.array([0]).reshape((1, 1))).reshape((-1,))
                     rewards = e.rewards[t+1]
                     
-                    # Calculate gradient
+                    # Calculate and Update actor gradient
                     action = e.actions[t]
-                    sig = clipped_sigmoid(np.dot(self.mu_params, state))
-                    mu = 100*sig
-                    d_lnpi_mu = 100*(action-mu/self.var**2)*(sig)*(1-sig)*state
-
-                    # Update training weights
                     delta = rewards + self.df * next_state_value - state_value
-                    self.mu_params = self.mu_params + self.lr_mu * (self.df ** t) * delta * d_lnpi_mu
+                    sig = clipped_sigmoid(np.dot(self.actor_params, state))
+                    d_lnpi_mu = 100*(action-100*sig/self.var**2)*(sig)*(1-sig)*state
+                    self.actor_params = self.actor_params + self.lr_mu * (self.df ** t) * delta * d_lnpi_mu
                     
-                    # Backpropagate neural networks
-                    self.v_net.backpropagate(np.array(state), delta)
+                    # Store Neural Network Training Data
+                    critic_labels.append(rewards + self.df * next_state_value)
+                    
+                # Backpropagate neural networks wi
+                T = len(e.rewards) - 2
+                X = np.array(e.states[1:(len(e.rewards)-1)]).reshape((T,-1))
+                Y = np.array(critic_labels).reshape((T,-1))
+                self.critic_network.train_network(X, Y)
             
             self.anneal_variance()
 
@@ -68,10 +93,15 @@ class normal_policy_actor_critic():
 
         # Create a new episode if the current episode has just ended
         if next_state_terminal:
-            self.episode_queue[len(self.episode_queue) - 1].total_rewards = sum(self.episode_queue[len(self.episode_queue) - 1].rewards)
-            self.episode_queue.append(episode())
             self.last_state_terminal = True
-            while len(self.episode_queue) > self.episode_queue_length: self.episode_queue.pop(0)
+            self.ou_process.value = 0
+            self.episode_queue[len(self.episode_queue) - 1].total_rewards = sum(self.episode_queue[len(self.episode_queue) - 1].rewards)
+            while len(self.episode_queue) > self.episode_queue_length:
+                total_rewards = []
+                for i in np.arange(len(self.episode_queue) - 2):
+                    total_rewards.append(self.episode_queue[i].total_rewards)
+                self.episode_queue.pop(total_rewards.index(min(total_rewards)))
+            self.episode_queue.append(episode())
     
     def anneal_variance(self):
         d_rwd = self.episode_queue[len(self.episode_queue) - 2].total_rewards - self.episode_queue[len(self.episode_queue) - 3].total_rewards
@@ -79,92 +109,18 @@ class normal_policy_actor_critic():
             if self.var > self.variance_annealing_min: self.var = self.variance_annealing_factor*self.var
         else:
             if self.var < self.variance_annealing_max: self.var = self.var/self.variance_annealing_factor
-        print("Var: " + str(self.var))
 
-# Custom Net for the Policy Gradient Learning Method
-# All hidden layers are ReLU.  Output is either linear or sigmoid.
-# This is controlled by self.sigmoid_output
-class policy_gradients_neural_net():
+# Define an Ornstein-Uhlenbeck process for exploration
+class ornstein_uhlenbeck_process():
     
-    def __init__(self, layersizes, learning_rate=0.01, sigmoid=True):
+    def __init__(self, theta, sigma):
+        self.theta = theta
+        self.sigma = sigma
+        self.value = 0
         
-        # Configurable Settings
-        self.layersizes = np.array([int(i) for i in layersizes])
-        self.learning_rates = learning_rate * np.ones(len(self.layersizes)-1)
-        self.sigmoid_output = sigmoid
-
-        # Initialize Node Value and Weight Arrays
-        self.z = []
-        self.a = []
-        self.w = []
-        self.b = []
-        for i in np.arange(1, len(self.layersizes)):
-            self.w.append(0.01 * np.random.randn(self.layersizes[i], self.layersizes[i-1]))
-            self.b.append(np.zeros(self.layersizes[i]))
-            
-    # Forward calculation of the output
-    def evaluate(self, X):
-        
-        # Set Input Data to Initially Activated Layer
-        self.a = [X.reshape(-1, 1)]
-        self.z = []
-
-        # Loop over all layers
-        for i in np.arange(len(self.layersizes) - 2):
-
-            # Calculate Z (pre-activated node values for hidden layers)
-            zz = np.matmul(self.w[i], self.a[i]) + np.broadcast_to(self.b[i], (1, self.b[i].shape[0])).transpose()
-            self.z.append(zz)
-
-            # Calculate A (ReLU activated node values for hidden layers)
-            self.a.append(self.ReLU(zz))
-        
-        # Compute the output layer pre-activated node and activated node values
-        zz = np.matmul(self.w[len(self.w) - 1], self.a[len(self.a) - 1])
-        self.z.append(zz)
-        if self.sigmoid_output: self.a.append(self.sigmoid(zz))
-        else: self.a.append(self.linear(zz))
-        return self.a[len(self.a) - 1][0][0]
-        
-    # Backpropagation / Training Function
-    # Cost is calculated per the policy gradient method and passed to this function as an input
-    def backpropagate(self, X, dL):
-        
-        # Evaluate the input to compute activated node values
-        self.evaluate(X)
-        
-        # Evaluate output change and combine with loss derivative
-        if self.sigmoid_output: dA = self.d_sigmoid(self.z[len(self.z)-1])
-        else: dA = self.d_linear(self.z[len(self.z)-1])
-        dz = dL * dA
-        prev_dz = dz
-        
-        # Train the outermost layer of the network
-        dw = np.matmul(dz, self.a[len(self.a)-1].T)
-        db = (np.sum(dz, axis=1, keepdims=True)).reshape((self.b[len(self.b)-1].shape[0],))
-        self.w[len(self.w)-1] = self.w[len(self.w)-1] - self.learning_rates[len(self.w)-1] * dw
-        self.b[len(self.b)-1] = self.b[len(self.b)-1] - self.learning_rates[len(self.b)-1] * db
-
-        # Loop over layers backwards
-        for i in np.flip(np.arange(len(self.w)-1)):
-            
-            dA = self.d_ReLU(self.z[i])
-            dz = np.matmul(self.w[i + 1].T, prev_dz) * dA
-            prev_dz = dz
-
-            # Calculate Weight Derivatives
-            dw = np.matmul(dz, self.a[i].T)
-            db = (np.sum(dz, axis=1, keepdims=True)).reshape((self.b[i].shape[0],))
-            self.w[i] = self.w[i] - self.learning_rates[i] * dw
-            self.b[i] = self.b[i] - self.learning_rates[i] * db
-    
-    def ReLU(self, x): return np.maximum(0, x)
-    def sigmoid(self, x): return 1/(1+np.exp(-1*x.astype(np.float32)))
-    def linear(self, x): return x
-    def d_ReLU(self, x): return np.where(x > 0, 1.0, 0)
-    def d_linear(self, x): return np.ones(x.shape)
-    def d_sigmoid(self, x): return self.sigmoid(x)*(1 - self.sigmoid(x))
-
+    def simulate(self, dt=1):
+        self.value = self.value + self.theta*self.value*dt + self.sigma*np.sqrt(dt)*np.random.normal()
+        return self.value
 
 # Episode Class for Organization of Data
 class episode():

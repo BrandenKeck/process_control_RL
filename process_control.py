@@ -69,7 +69,7 @@ class rl_controller():
         self.training_counter = 0
 
     # Pygame Function to Display Visual Simulations
-    def run(self, learn=True):
+    def run(self, ornstein_uhlenbeck=False, learn=True):
 
         # Initialize game
         pygame.init()
@@ -90,13 +90,13 @@ class rl_controller():
             pygame.time.delay(10)
 
             # Run simulation
-            self.simulate(learn)
+            self.simulate(ornstein_uhlenbeck, learn)
             if(len(self.process.out) == 0): continue
 
             # Draw Objects
             self.draw_window(window)
             self.draw_process(window, fonts)
-            self.draw_axes_and_text(window, fonts)
+            self.draw_axes_and_text(window, fonts, learn)
 
             # Update Display
             pygame.display.update()
@@ -109,33 +109,23 @@ class rl_controller():
         # End the Game
         pygame.quit()
 
-    def train(self, iterations):
+    def train(self, iterations, ornstein_uhlenbeck=True, learn=True):
         
         # Train for iterations
-        while self.training_counter < iterations: self.simulate()
+        while self.training_counter < iterations: self.simulate(ornstein_uhlenbeck, learn)
         self.training_counter = 0
 
-    def explore(self, iterations, exp_factor=0.01):
+    def simulate(self, ornstein_uhlenbeck=False, learn=True):
         
-        # Explore for iterations
-        while self.training_counter < iterations: self.simulate(exp_factor=0.01)
-        self.training_counter = 0
-
-    def simulate(self, exp_factor=-1, learn=True):
-        
-            # Set Variance to Minimum if Learning is Disabled
-            if not learn: self.policy_gradients.var = self.policy_gradients.variance_annealing_min
-        
-            # Simulate Controller
-            if exp_factor > 0: 
-                pv = self.process.pv[len(self.process.pv)-1]
-                sp = self.process.sp[len(self.process.pv)-1]
-                self.last_action = self.last_action + exp_factor*(sp - pv)
-            else: 
-                self.act()
+            # Act function
+            self.act(ornstein_uhlenbeck, learn)
 
             # Compute error and append the process
             pv, sp = self.process.run(self.last_action)
+            
+            # Append the Error to the state queue and pop the trailing value
+            self.state.append(pv - sp)
+            while len(self.state) > self.state_length: self.state.pop(0)
             
             # Process Reset
             if self.process.current_time == self.simulation_length:
@@ -147,32 +137,37 @@ class rl_controller():
                 self.training_counter = self.training_counter + 1
                 print("Completed episodes: " + str(self.episode_counter))
             
-            # Learn via policy gradient if Learning is Enabled
+            # Learn via policy gradient
             if learn: self.learn(pv, sp)
 
-    def act(self):
+    def act(self, ou, learn):
 
         # Take an action based on the REINFORCE method policy
         self.prev_last_action = self.last_action
-        self.last_action = self.policy_gradients.act(self.state, self.last_action)
+        self.last_action = self.policy_gradients.act(self.state, ou, learn)
         if self.last_action > 100: self.last_action = 100
         if self.last_action < 0: self.last_action = 0
 
 
     def learn(self, pv, sp):
 
-        # Append the Error to the state queue and pop the trailing value
-        self.state.append(pv - sp)
-        while len(self.state) > self.state_length: self.state.pop(0)
-
         # Reward is computed based on spec limits and additional bonuses for tight control
-        self.reward = self.rwd_baseline - np.sum(np.abs(self.state))
+        self.reward = self.rwd_baseline - np.abs(pv - sp)
+        #self.reward = self.rwd_baseline/np.abs(pv - sp)
         if np.abs(pv - sp) < self.max_err: self.reward = self.reward + self.max_err_rwd
         
         # Pass Reward information to the learning function
         state = deepcopy(self.state)
         self.policy_gradients.learn(state, self.episode_complete, self.reward, self.last_action)
         if self.episode_complete: self.episode_complete = False
+    
+    def hard_reset(self):
+        self.process = process(pv0=self.pv0, out0=self.out0, sp=self.sps, pvf=self.pvf)
+        self.state = np.zeros(self.state_length).tolist()
+        self.queue_position = 0
+        self.displayed_time = np.arange(self.queue_length)
+        self.episode_complete = False
+        self.training_counter = 0
 
     def draw_window(self, window):
 
@@ -220,11 +215,11 @@ class rl_controller():
         out_txt = fonts[2].render(str(round(out[out_rescaled.size - 1],3)), True, (10, 10, 230))
         window.blit(out_txt, dest=(self.x_positions[out_rescaled.size - 2] + 10, out_rescaled[out_rescaled.size - 2] - 6))
 
-    def draw_axes_and_text(self, window, fonts):
+    def draw_axes_and_text(self, window, fonts, learn):
 
         # Draw Simulation Title Text
         # Drone control using reinforcement learning
-        title_txt = fonts[0].render("b-Control using Reinforcement Learning v0.0.3", True, (0, 0, 0))
+        title_txt = fonts[0].render("Process Control with Reinforcement Learning v0.0.5", True, (0, 0, 0))
         window.blit(title_txt, dest=((self.w - self.plot_w)/2, (self.h - self.plot_h)/2 - 60))
         
         # Draw Vertical Axis
@@ -257,10 +252,13 @@ class rl_controller():
                     tickmark_txt = fonts[1].render(str(val), True, (0, 0, 0))
                     window.blit(tickmark_txt, dest=(xpos, self.scale_zero_position + 10))
 
-        # Draw Simulation Details Text
-        rwd_txt = fonts[1].render("Current Reward: " + str(self.reward), True, (0, 0, 0))
+        # Draw Current Rewards Text
+        if learn: rwd_txt = fonts[1].render("Current Reward: " + str(round(self.reward,3)), True, (0, 0, 0))
+        else: rwd_txt = fonts[1].render("Current Reward: <<Not Learning>>", True, (0, 0, 0))
         window.blit(rwd_txt, dest=((self.w - self.plot_w)/2 + 10, self.h - (self.h - self.plot_h)/2 + 30))
-        la_txt = fonts[1].render("Last Action: " + str(self.last_action), True, (0, 0, 0))
+        
+        # Draw Last Action Text
+        la_txt = fonts[1].render("Last Action: " + str(round(self.last_action,2)), True, (0, 0, 0))
         window.blit(la_txt, dest=((self.w - self.plot_w)/2 + 10, self.h - (self.h - self.plot_h)/2 + 60))
 
 
