@@ -4,7 +4,7 @@ import numpy as np
 from copy import deepcopy
 
 # Custom Learning Modules
-from continuous_policy_gradient_methods import normal_policy_actor_critic
+from continuous_policy_gradient_methods import ddpg
 
 # Define a default response function
 # Variance in slope, output, and random acceptable
@@ -18,7 +18,7 @@ class rl_controller():
     def __init__(self, lr=1e-8, df=0.85, 
                  pv0=0, out0=50, sps=np.ones(2000), pvf=linear_output_response, 
                  rwd_baseline=10, max_err=0.01, max_err_rwd=100, 
-                 eql=11, sl=10, ql=500):
+                 eql=11, sl=10, al=1, ql=500):
         
         # Create a Process object and store initial settings
         self.process = process(pv0=pv0, out0=out0, sp=sps, pvf=pvf)
@@ -31,7 +31,7 @@ class rl_controller():
         self.max_err_rwd = max_err_rwd
 
         # Create Learning Objects
-        self.policy_gradients = normal_policy_actor_critic(lr, df, eql, sl)
+        self.policy_gradients = ddpg(eql=eql, sl=sl, al=al)
         self.state = np.zeros(sl).tolist()
         self.state_length = sl
         self.reward = 0
@@ -118,7 +118,7 @@ class rl_controller():
     def simulate(self, ornstein_uhlenbeck=False, learn=True):
         
             # Act function
-            self.act(ornstein_uhlenbeck, learn)
+            self.act(ornstein_uhlenbeck)
 
             # Compute error and append the process
             pv, sp = self.process.run(self.last_action)
@@ -140,11 +140,11 @@ class rl_controller():
             # Learn via policy gradient
             if learn: self.learn(pv, sp)
 
-    def act(self, ou, learn):
+    def act(self, ornstein_uhlenbeck):
 
         # Take an action based on the REINFORCE method policy
         self.prev_last_action = self.last_action
-        self.last_action = self.policy_gradients.act(self.state, ou, learn)
+        self.last_action = self.policy_gradients.act(self.state, ornstein_uhlenbeck)
         if self.last_action > 100: self.last_action = 100
         if self.last_action < 0: self.last_action = 0
 
